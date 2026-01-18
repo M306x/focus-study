@@ -27,7 +27,7 @@ export default function App() {
   const [selectedSound, setSelectedSound] = useState(SOUND_LIBRARY[0]);
   const [alarmDuration, setAlarmDuration] = useState(5);
   const [infiniteAlarm, setInfiniteAlarm] = useState(false);
-  const [dailyGoalHours, setDailyGoalHours] = useState(7); // Novo: Meta diária em horas
+  const [dailyGoalHours, setDailyGoalHours] = useState(7);
   
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
@@ -57,7 +57,7 @@ export default function App() {
         if (data.history) setHistory(data.history);
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
-        if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours); // Novo
+        if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -75,7 +75,7 @@ export default function App() {
       history,
       alarmDuration,
       infiniteAlarm,
-      dailyGoalHours, // Novo
+      dailyGoalHours,
       selectedSoundId: selectedSound.id
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
@@ -86,8 +86,8 @@ export default function App() {
     const updateWeeklyMinutes = () => {
       const now = new Date();
       const startOfCurrentWeek = new Date(now);
-      startOfCurrentWeek.setDate(now.getDate() - now.getDay()); // Domingo como início da semana
-      startOfCurrentWeek.setHours(0, 0, 0, 0);
+      startOfCurrentWeek.setDate(now.getDate() - (now.getDay() + 1) % 7); // Semana começa no sábado (0=dom, 6=sáb)
+      startOfCurrentWeek.setHours(23, 0, 0, 0); // Reset no sábado às 23h
 
       setTopics(prevTopics =>
         prevTopics.map(topic => {
@@ -104,7 +104,7 @@ export default function App() {
 
     const interval = setInterval(() => {
       const now = new Date();
-      if (now.getHours() === 0 && now.getMinutes() === 0) {
+      if (now.getDay() === 6 && now.getHours() === 23 && now.getMinutes() === 0) {
         updateWeeklyMinutes();
       }
     }, 60000); // Checa a cada minuto
@@ -119,7 +119,7 @@ export default function App() {
       history,
       alarmDuration,
       infiniteAlarm,
-      dailyGoalHours, // Novo
+      dailyGoalHours,
       selectedSoundId: selectedSound.id,
       exportDate: new Date().toISOString()
     };
@@ -148,7 +148,7 @@ export default function App() {
         if (data.history) setHistory(data.history);
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
-        if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours); // Novo
+        if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -188,7 +188,7 @@ export default function App() {
     return () => clearInterval(timerRef.current);
   }, [isRunning, endTime]);
 
-  const playSound = (soundConfig, duration) => { // duration pode ser number ou 'infinite'
+  const playSound = (soundConfig, duration) => {
     initAudio();
     const ctx = audioContextRef.current;
     if (!ctx) return;
@@ -226,6 +226,7 @@ export default function App() {
 
   const handleComplete = () => {
     setIsRunning(false);
+    initAudio(); // Garantir que audio esteja inicializado antes do som
     setIsAlarmPlaying(true);
     playSound(selectedSound, infiniteAlarm ? 'infinite' : alarmDuration);
 
@@ -358,9 +359,9 @@ export default function App() {
     return days;
   }, [history]);
 
-  const currentStreak = useMemo(() => { // Novo: Cálculo de streak
+  const currentStreak = useMemo(() => {
     let streak = 0;
-    const goalMins = 60; // Pelo menos 1 hora
+    const goalMins = 60;
     for (let i = 0; i < calendarData.length; i++) {
       if (calendarData[i].minutes >= goalMins) {
         streak++;
@@ -371,7 +372,7 @@ export default function App() {
     return streak;
   }, [calendarData]);
 
-  const monthlyData = useMemo(() => { // Novo: Dados mensais para últimos 6 meses
+  const monthlyData = useMemo(() => {
     const months = [];
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
@@ -618,61 +619,61 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="gradient-bg border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square shadow-glow">
-                  <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400">
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
                     <Clock size={24} />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-1">Total Estudado</span>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Total Estudado</span>
                     <h3 className="text-5xl font-bold text-white tabular-nums">{totalHours}h</h3>
                   </div>
                 </div>
 
-                <div className="gradient-bg border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square shadow-glow">
-                  <div className="w-12 h-12 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400">
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500">
                     <Zap size={24} />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-1">Média/Sessão</span>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Média/Sessão</span>
                     <h3 className="text-5xl font-bold text-white tabular-nums">{avgSession}m</h3>
                   </div>
                 </div>
 
-                <div className="gradient-bg border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square shadow-glow">
-                  <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400">
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
                     <Activity size={24} />
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
-                      <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">Este Mês</span>
+                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Este Mês</span>
                       <span className="text-xs font-bold text-white">{statsByPeriod.month}h</span>
                     </div>
                     <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
-                      <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">Esta Semana</span>
+                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Esta Semana</span>
                       <span className="text-xs font-bold text-white">{statsByPeriod.week}h</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">Hoje</span>
-                      <span className="text-xs font-bold text-emerald-400">{statsByPeriod.day}h</span>
+                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Hoje</span>
+                      <span className="text-xs font-bold text-emerald-500">{statsByPeriod.day}h</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="gradient-bg border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square shadow-glow">
-                  <div className="w-12 h-12 bg-orange-500/20 rounded-2xl flex items-center justify-center text-orange-400">
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-500">
                     <Flame size={24} />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-1">Streak Atual</span>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Streak Atual</span>
                     <h3 className="text-5xl font-bold text-white tabular-nums">{currentStreak} dias</h3>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10 shadow-glow">
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <TrendingUp size={18} className="text-zinc-500" /> Consistência Diária
+                    <TrendingUp size={18} className="text-zinc-600" /> Consistência Diária
                   </h3>
                 </div>
                 <div className="flex gap-2 justify-center">
@@ -700,7 +701,7 @@ export default function App() {
                     return (
                       <div 
                         key={i} 
-                        title={`${day.date}: ${day.minutes} min`}
+                        title={`${day.date}: ${(day.minutes / 60).toFixed(1)}h`}
                         className="w-4 h-16 rounded-full transition-all hover:scale-y-110"
                         style={{ 
                           backgroundColor: hasStudy ? `rgba(${baseColor}, ${intensity})` : 'rgba(100, 100, 100, 0.12)',
@@ -710,16 +711,16 @@ export default function App() {
                     );
                   })}
                 </div>
-                <div className="flex justify-between mt-4 px-2 text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
+                <div className="flex justify-between mt-4 px-2 text-[9px] font-bold text-zinc-700 uppercase tracking-widest">
                   <span>30 dias atrás</span>
                   <span>Hoje</span>
                 </div>
               </div>
 
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10 shadow-glow">
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-12">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <BarChart2 size={18} className="text-zinc-500" /> Progresso Mensal
+                    <BarChart2 size={18} className="text-zinc-600" /> Progresso Mensal
                   </h3>
                 </div>
                 <div className="flex items-end justify-between h-48 gap-4 px-4">
@@ -727,7 +728,7 @@ export default function App() {
                     const height = (m.hours / maxMonthlyHours) * 100;
                     const prevHours = i < monthlyData.length - 1 ? monthlyData[i + 1].hours : m.hours;
                     const diff = m.hours - prevHours;
-                    const trendColor = diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-zinc-400';
+                    const trendColor = diff > 0 ? 'text-emerald-500' : diff < 0 ? 'text-red-500' : 'text-zinc-500';
                     const trendIcon = diff > 0 ? ArrowUp : diff < 0 ? ArrowDown : null;
 
                     return (
@@ -739,7 +740,7 @@ export default function App() {
                           />
                         </div>
                         <div className="mt-2 flex items-center gap-1">
-                          <span className="text-[8px] font-bold uppercase tracking-tighter text-zinc-500 group-hover:text-white transition-colors">{m.month}</span>
+                          <span className="text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{m.month}</span>
                           {trendIcon && <trendIcon size={10} className={trendColor} />}
                         </div>
                       </div>
@@ -748,10 +749,10 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10 shadow-glow">
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-12">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <BarChart3 size={18} className="text-zinc-500" /> Horas por Tópico
+                    <BarChart3 size={18} className="text-zinc-600" /> Horas por Tópico
                   </h3>
                 </div>
                 <div className="flex items-end justify-between h-48 gap-4 px-4">
@@ -768,7 +769,7 @@ export default function App() {
                                style={{ height: `${height}%`, backgroundColor: t.color, boxShadow: `0 0 40px -10px ${t.color}44` }}
                              />
                           </div>
-                          <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-500 group-hover:text-white transition-colors">{t.name}</span>
+                          <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{t.name}</span>
                         </div>
                       );
                     })
@@ -783,7 +784,7 @@ export default function App() {
               <h2 className="text-2xl font-bold text-white uppercase text-xs tracking-widest mb-8">Objetivos Semanais</h2>
               {topics.length === 0 && <div className="text-center py-20 border border-dashed border-zinc-900 rounded-3xl text-zinc-800 text-[10px] font-black uppercase tracking-widest">Crie tópicos primeiro</div>}
               {topics.map(topic => {
-                const hoursDone = topic.weeklyMinutes / 60;
+                const hoursDone = (topic.weeklyMinutes || 0) / 60;
                 const progress = topic.hasGoal ? (hoursDone / topic.goalHours) * 100 : 0;
                 return (
                   <div key={topic.id} className="bg-zinc-900/30 border border-zinc-900 rounded-3xl p-8 relative overflow-hidden group">
@@ -891,7 +892,7 @@ export default function App() {
                   {SOUND_LIBRARY.map(sound => (
                     <button 
                       key={sound.id}
-                      onClick={() => { setSelectedSound(sound); playSound(sound, 2); }} // Sempre 2s para amostra
+                      onClick={() => { setSelectedSound(sound); playSound(sound, 2); }}
                       className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${selectedSound.id === sound.id ? 'bg-zinc-900 border-zinc-600 text-white shadow-xl' : 'bg-transparent border-zinc-900 text-zinc-700 hover:border-zinc-800'}`}
                     >
                       <span className="text-[10px] font-bold uppercase tracking-widest">{sound.name}</span>
@@ -940,7 +941,6 @@ export default function App() {
                 </div>
               </section>
 
-              {/* Novo: Meta Diária */}
               <section>
                 <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
                   <Target size={16} /> Meta Diária
