@@ -6,7 +6,7 @@ import {
   BarChart3, Activity, CheckCircle2,
   Calendar, Award, Zap, ChevronRight,
   Palette, BellRing, Trash2, Coffee, Brain,
-  BookOpen
+  BookOpen, Download, Upload, FileJson
 } from 'lucide-react';
 
 const SOUND_LIBRARY = [
@@ -18,9 +18,11 @@ const SOUND_LIBRARY = [
 
 const COLOR_OPTIONS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#FFFFFF', '#4ADE80', '#A855F7', '#F97316'];
 
+const STORAGE_KEY = 'study_dashboard_data_v1';
+
 export default function App() {
   const [view, setView] = useState('focus');
-  const [mode, setMode] = useState('focus'); // 'focus' ou 'break'
+  const [mode, setMode] = useState('focus'); 
   const [selectedSound, setSelectedSound] = useState(SOUND_LIBRARY[0]);
   const [alarmDuration, setAlarmDuration] = useState(5);
   
@@ -31,12 +33,120 @@ export default function App() {
   const [customTime, setCustomTime] = useState(25);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
+  const [endTime, setEndTime] = useState(null); // Novo: Timestamp de fim do timer
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const [modalType, setModalType] = useState(null); 
   const [editingTopic, setEditingTopic] = useState(null);
   const [tempInputValue, setTempInputValue] = useState("");
+
+  // --- PERSISTÊNCIA: CARREGAR DADOS DO LOCALSTORAGE ---
+  useEffect(() => {
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
+      try {
+        const data = JSON.parse(savedData);
+        if (data.topics) setTopics(data.topics);
+        if (data.history) setHistory(data.history);
+        if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
+        if (data.selectedSoundId) {
+          const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
+          if (sound) setSelectedSound(sound);
+        }
+      } catch (e) {
+        console.error("Erro ao carregar dados do LocalStorage:", e);
+      }
+    }
+  }, []);
+
+  // --- PERSISTÊNCIA: SALVAR DADOS NO LOCALSTORAGE ---
+  useEffect(() => {
+    const dataToSave = {
+      topics,
+      history,
+      alarmDuration,
+      selectedSoundId: selectedSound.id
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+  }, [topics, history, alarmDuration, selectedSound]);
+
+  // --- RESET SEMANAL AUTOMÁTICO DE weeklyMinutes ---
+  useEffect(() => {
+    const updateWeeklyMinutes = () => {
+      const now = new Date();
+      const startOfCurrentWeek = new Date(now);
+      startOfCurrentWeek.setDate(now.getDate() - now.getDay()); // Domingo como início da semana
+      startOfCurrentWeek.setHours(0, 0, 0, 0);
+
+      setTopics(prevTopics =>
+        prevTopics.map(topic => {
+          const weeklyMins = history
+            .filter(h => h.topicId === topic.id && new Date(h.date) >= startOfCurrentWeek)
+            .reduce((sum, h) => sum + h.minutes, 0);
+
+          return { ...topic, weeklyMinutes: weeklyMins };
+        })
+      );
+    };
+
+    updateWeeklyMinutes();
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      if (now.getHours() === 0 && now.getMinutes() === 0) {
+        updateWeeklyMinutes();
+      }
+    }, 60000); // Checa a cada minuto
+
+    return () => clearInterval(interval);
+  }, [history]);
+
+  // --- EXPORTAR DADOS (JSON) ---
+  const handleExport = () => {
+    const dataToExport = {
+      topics,
+      history,
+      alarmDuration,
+      selectedSoundId: selectedSound.id,
+      exportDate: new Date().toISOString()
+    };
+    const jsonString = JSON.stringify(dataToExport, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `study_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // --- IMPORTAR DADOS (JSON) ---
+  const handleImport = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (data.topics) setTopics(data.topics);
+        if (data.history) setHistory(data.history);
+        if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
+        if (data.selectedSoundId) {
+          const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
+          if (sound) setSelectedSound(sound);
+        }
+      } catch (err) {
+        console.error("Erro ao importar JSON:", err);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // Reset input
+  };
 
   const initAudio = () => {
     if (!audioContextRef.current) {
@@ -47,14 +157,23 @@ export default function App() {
     }
   };
 
+  // --- LÓGICA DO TIMER CORRIGIDA COM TIMESTAMP ---
   useEffect(() => {
-    if (isRunning && timeLeft > 0) {
-      timerRef.current = setInterval(() => setTimeLeft(t => t - 1), 1000);
-    } else if (timeLeft === 0 && isRunning) {
-      handleComplete();
+    if (isRunning) {
+      timerRef.current = setInterval(() => {
+        const now = Date.now();
+        const remaining = Math.max(0, Math.round((endTime - now) / 1000));
+        setTimeLeft(remaining);
+
+        if (remaining <= 0) {
+          clearInterval(timerRef.current);
+          handleComplete();
+        }
+      }, 1000);
     }
+
     return () => clearInterval(timerRef.current);
-  }, [isRunning, timeLeft]);
+  }, [isRunning, endTime]); // Dependências atualizadas
 
   const playSound = (soundConfig, totalSeconds) => {
     initAudio();
@@ -88,11 +207,18 @@ export default function App() {
     
     if (mode === 'focus' && activeTopic) {
       const today = new Date().toISOString().split('T')[0];
-      setTopics(prev => prev.map(t => 
-        t.id === activeTopic.id ? { ...t, weeklyMinutes: t.weeklyMinutes + customTime } : t
-      ));
       
-      setHistory(prev => [{
+      const newTopics = topics.map(t => 
+        t.id === activeTopic.id 
+          ? { 
+              ...t, 
+              weeklyMinutes: t.weeklyMinutes + customTime,
+              totalMinutes: (t.totalMinutes || 0) + customTime 
+            } 
+          : t
+      );
+      
+      const newHistoryEntry = {
         id: Date.now(),
         topicId: activeTopic.id,
         topicName: activeTopic.name,
@@ -100,14 +226,17 @@ export default function App() {
         date: today,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         color: activeTopic.color
-      }, ...prev]);
+      };
+      
+      const newHistory = [newHistoryEntry, ...history];
+      
+      setTopics(newTopics);
+      setHistory(newHistory);
 
-      // Mudança automática para o modo Break após Focus
       setMode('break');
       setCustomTime(5);
       setTimeLeft(5 * 60);
     } else if (mode === 'break') {
-      // Retorna para o modo Focus após Break
       setMode('focus');
       setCustomTime(25);
       setTimeLeft(25 * 60);
@@ -121,6 +250,7 @@ export default function App() {
     setTimeLeft(25 * 60);
     setIsRunning(false);
     setView('focus');
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   const formatTime = (seconds) => {
@@ -131,23 +261,17 @@ export default function App() {
     return `${hDisplay}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Cálculos de Status
-  const totalMinutes = topics.reduce((acc, t) => acc + t.weeklyMinutes, 0);
+  const totalMinutes = topics.reduce((acc, t) => acc + (t.totalMinutes || 0), 0);
   const totalHours = (totalMinutes / 60).toFixed(1);
   const avgSession = history.length > 0 ? (totalMinutes / history.length).toFixed(0) : 0;
-  const maxMins = Math.max(...topics.map(t => t.weeklyMinutes), 1);
+  const maxMins = Math.max(...topics.map(t => t.totalMinutes || 0), 1);
 
-  // Filtros de tempo para Dashboard
   const statsByPeriod = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
-    
-    // Início da semana (domingo)
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0,0,0,0);
-
-    // Início do mês
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const dayMins = history.filter(h => h.date === todayStr).reduce((acc, curr) => acc + curr.minutes, 0);
@@ -161,7 +285,6 @@ export default function App() {
     };
   }, [history]);
 
-  // Calendário de Consistência (últimos 30 dias)
   const calendarData = useMemo(() => {
     const days = [];
     const now = new Date();
@@ -253,7 +376,6 @@ export default function App() {
           
           {view === 'focus' && (
             <div className="flex flex-col items-center justify-center pt-8">
-              {/* Seletor de Tópicos */}
               <div className="flex flex-wrap justify-center gap-2 bg-zinc-900/40 p-1.5 rounded-2xl mb-12 border border-zinc-800/50">
                 {topics.length === 0 ? (
                   <span className="px-4 py-2 text-[10px] font-bold uppercase text-zinc-600 tracking-widest">Nenhum tópico criado</span>
@@ -270,7 +392,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Temporizador */}
               <div className="flex flex-col items-center">
                 <span 
                   className={`text-[10px] font-black uppercase tracking-[0.4em] mb-4 transition-colors`}
@@ -286,7 +407,6 @@ export default function App() {
                   {formatTime(timeLeft)}
                 </button>
 
-                {/* Controles de Tempo */}
                 {!isRunning && (
                   <div className="space-y-4 flex flex-col items-center mt-8">
                     <div className="flex gap-3">
@@ -301,7 +421,6 @@ export default function App() {
                       ))}
                     </div>
                     
-                    {/* Botões Focus/Break */}
                     <div className="flex gap-4">
                       <button 
                         onClick={() => { setMode('focus'); setCustomTime(25); setTimeLeft(25 * 60); }}
@@ -320,16 +439,22 @@ export default function App() {
                 )}
               </div>
 
-              {/* Play/Pause */}
               <div className="mt-16 flex items-center gap-10">
                 <button 
                   disabled={mode === 'focus' && !activeTopic}
-                  onClick={() => { initAudio(); setIsRunning(!isRunning); }} 
+                  onClick={() => { 
+                    initAudio(); 
+                    if (!isRunning) {
+                      // Novo: Define endTime ao iniciar
+                      setEndTime(Date.now() + timeLeft * 1000);
+                    }
+                    setIsRunning(!isRunning); 
+                  }} 
                   className={`w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-20 disabled:grayscale ${isRunning ? 'bg-zinc-900 text-white border border-zinc-800' : (mode === 'break' ? 'bg-emerald-500 text-black' : 'bg-white text-black')}`}
                 >
                   {isRunning ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
                 </button>
-                <button onClick={() => { setIsRunning(false); setTimeLeft(customTime * 60); }} className="text-zinc-800 hover:text-white p-3 transition-colors">
+                <button onClick={() => { setIsRunning(false); setTimeLeft(customTime * 60); setEndTime(null); }} className="text-zinc-800 hover:text-white p-3 transition-colors">
                   <RotateCcw size={24} />
                 </button>
               </div>
@@ -350,7 +475,10 @@ export default function App() {
                        />
                        <span className="text-white text-sm font-bold uppercase tracking-wide">{t.name}</span>
                      </div>
-                     <button onClick={() => setTopics(topics.filter(x => x.id !== t.id))} className="text-zinc-800 hover:text-red-500 transition-colors">
+                     <button onClick={() => {
+                        const updated = topics.filter(x => x.id !== t.id);
+                        setTopics(updated);
+                     }} className="text-zinc-800 hover:text-red-500 transition-colors">
                        <X size={18} />
                      </button>
                    </div>
@@ -363,7 +491,8 @@ export default function App() {
                    className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 text-white outline-none focus:border-zinc-600 text-[10px] font-bold tracking-widest uppercase"
                    onKeyDown={(e) => { 
                      if(e.key === 'Enter' && e.target.value) { 
-                       setTopics([...topics, { id: Date.now(), name: e.target.value, color: COLOR_OPTIONS[Math.floor(Math.random()*COLOR_OPTIONS.length)], weeklyMinutes: 0, goalHours: 10, hasGoal: true }]); 
+                       const updated = [...topics, { id: Date.now(), name: e.target.value, color: COLOR_OPTIONS[Math.floor(Math.random()*COLOR_OPTIONS.length)], weeklyMinutes: 0, totalMinutes: 0, goalHours: 10, hasGoal: true }];
+                       setTopics(updated); 
                        e.target.value = ''; 
                      }
                    }}
@@ -381,7 +510,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Grid Principal */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
                   <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
@@ -424,7 +552,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Calendário de Consistência (Heatmap) */}
               <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
@@ -433,13 +560,30 @@ export default function App() {
                 </div>
                 <div className="flex gap-2 justify-center">
                   {calendarData.map((day, i) => {
-                    const opacity = day.minutes > 0 ? Math.min(0.2 + (day.minutes / 120), 1) : 0.05;
+                    const hasStudy = day.minutes > 0;
+                    let intensity;
+
+                    if (!hasStudy) {
+                      intensity = 0.04; // quase invisível para dias sem estudo
+                    } else if (day.minutes <= 15) {
+                      intensity = 0.15; // muito claro para sessões curtas
+                    } else if (day.minutes <= 45) {
+                      intensity = 0.4;
+                    } else if (day.minutes <= 90) {
+                      intensity = 0.7;
+                    } else {
+                      intensity = 0.95;
+                    }
+
                     return (
                       <div 
                         key={i} 
                         title={`${day.date}: ${day.minutes} min`}
                         className="w-4 h-16 rounded-full transition-all hover:scale-y-110"
-                        style={{ backgroundColor: `rgba(255, 255, 255, ${opacity})` }}
+                        style={{ 
+                          backgroundColor: hasStudy ? `rgba(16, 185, 129, ${intensity})` : 'rgba(100, 100, 100, 0.12)',
+                          border: !hasStudy ? '1px dashed rgba(100,100,100,0.3)' : 'none'
+                        }}
                       />
                     );
                   })}
@@ -450,7 +594,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Gráfico de Barras */}
               <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-12">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
@@ -462,7 +605,7 @@ export default function App() {
                     <div className="w-full flex items-center justify-center text-zinc-800 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
                   ) : (
                     topics.map(t => {
-                      const height = (t.weeklyMinutes / maxMins) * 100;
+                      const height = ((t.totalMinutes || 0) / maxMins) * 100;
                       return (
                         <div key={t.id} className="flex-1 flex flex-col items-center group">
                           <div className="relative w-full flex justify-center flex-1">
@@ -492,7 +635,10 @@ export default function App() {
                   <div key={topic.id} className="bg-zinc-900/30 border border-zinc-900 rounded-3xl p-8 relative overflow-hidden group">
                     {!topic.hasGoal && <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <button 
-                        onClick={() => setTopics(topics.map(t => t.id === topic.id ? {...t, hasGoal: true} : t))}
+                        onClick={() => {
+                            const updated = topics.map(t => t.id === topic.id ? {...t, hasGoal: true} : t);
+                            setTopics(updated);
+                        }}
                         className="bg-white text-black px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest"
                       >
                         Ativar Meta
@@ -507,7 +653,10 @@ export default function App() {
                             <input 
                               type="number" 
                               value={topic.goalHours}
-                              onChange={(e) => setTopics(topics.map(t => t.id === topic.id ? {...t, goalHours: parseInt(e.target.value) || 0} : t))}
+                              onChange={(e) => {
+                                const updated = topics.map(t => t.id === topic.id ? {...t, goalHours: parseInt(e.target.value) || 0} : t);
+                                setTopics(updated);
+                              }}
                               className="bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-[11px] text-white w-14 outline-none focus:border-zinc-500"
                             />
                             <span className="text-zinc-600 text-[9px] font-bold uppercase">Meta de Horas</span>
@@ -533,7 +682,10 @@ export default function App() {
 
                     {topic.hasGoal && (
                       <button 
-                        onClick={() => setTopics(topics.map(t => t.id === topic.id ? {...t, hasGoal: false} : t))}
+                        onClick={() => {
+                            const updated = topics.map(t => t.id === topic.id ? {...t, hasGoal: false} : t);
+                            setTopics(updated);
+                        }}
                         className="mt-4 text-[9px] font-bold text-zinc-700 hover:text-red-900 uppercase tracking-widest transition-colors"
                       >
                         Remover Objetivo
@@ -547,6 +699,36 @@ export default function App() {
 
           {view === 'settings' && (
             <div className="max-w-md mx-auto space-y-12">
+              {/* BACKUP DE DADOS */}
+              <section>
+                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                  <FileJson size={16} /> Backup de Dados
+                </h2>
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={handleExport}
+                    className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-500 transition-all text-zinc-400 hover:text-white"
+                  >
+                    <Download size={20} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Exportar</span>
+                  </button>
+                  <button 
+                    onClick={() => fileInputRef.current.click()}
+                    className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-500 transition-all text-zinc-400 hover:text-white"
+                  >
+                    <Upload size={20} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Importar</span>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept=".json" 
+                      onChange={handleImport}
+                    />
+                  </button>
+                </div>
+              </section>
+
               <section>
                 <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
                   <Volume2 size={16} /> Som do Alerta
@@ -577,7 +759,10 @@ export default function App() {
                   <input 
                     type="number" 
                     value={alarmDuration}
-                    onChange={(e) => setAlarmDuration(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => {
+                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                        setAlarmDuration(val);
+                    }}
                     className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
                   />
                 </div>
@@ -632,7 +817,8 @@ export default function App() {
                 <button 
                   key={c}
                   onClick={() => {
-                    setTopics(topics.map(t => t.id === editingTopic.id ? {...t, color: c} : t));
+                    const updated = topics.map(t => t.id === editingTopic.id ? {...t, color: c} : t);
+                    setTopics(updated);
                     setEditingTopic(null);
                   }}
                   className="aspect-square rounded-full border-2 border-zinc-800 transition-transform hover:scale-125"
