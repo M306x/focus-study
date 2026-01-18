@@ -6,7 +6,8 @@ import {
   BarChart3, Activity, CheckCircle2,
   Calendar, Award, Zap, ChevronRight,
   Palette, BellRing, Trash2, Coffee, Brain,
-  BookOpen, Download, Upload, FileJson
+  BookOpen, Download, Upload, FileJson,
+  Flame, BarChart2, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 const SOUND_LIBRARY = [
@@ -25,7 +26,8 @@ export default function App() {
   const [mode, setMode] = useState('focus'); 
   const [selectedSound, setSelectedSound] = useState(SOUND_LIBRARY[0]);
   const [alarmDuration, setAlarmDuration] = useState(5);
-  const [infiniteAlarm, setInfiniteAlarm] = useState(false); // Novo: Opção para alarme infinito
+  const [infiniteAlarm, setInfiniteAlarm] = useState(false);
+  const [dailyGoalHours, setDailyGoalHours] = useState(7); // Novo: Meta diária em horas
   
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
@@ -35,11 +37,11 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [endTime, setEndTime] = useState(null);
-  const [isAlarmPlaying, setIsAlarmPlaying] = useState(false); // Novo: Estado para alarme tocando
+  const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
   const fileInputRef = useRef(null);
-  const alarmPlayingRef = useRef(false); // Novo: Ref para controlar loop do alarme
+  const alarmPlayingRef = useRef(false);
 
   const [modalType, setModalType] = useState(null); 
   const [editingTopic, setEditingTopic] = useState(null);
@@ -54,7 +56,8 @@ export default function App() {
         if (data.topics) setTopics(data.topics);
         if (data.history) setHistory(data.history);
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
-        if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm); // Novo
+        if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
+        if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours); // Novo
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -71,11 +74,12 @@ export default function App() {
       topics,
       history,
       alarmDuration,
-      infiniteAlarm, // Novo
+      infiniteAlarm,
+      dailyGoalHours, // Novo
       selectedSoundId: selectedSound.id
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-  }, [topics, history, alarmDuration, infiniteAlarm, selectedSound]);
+  }, [topics, history, alarmDuration, infiniteAlarm, dailyGoalHours, selectedSound]);
 
   // --- RESET SEMANAL AUTOMÁTICO DE weeklyMinutes ---
   useEffect(() => {
@@ -114,7 +118,8 @@ export default function App() {
       topics,
       history,
       alarmDuration,
-      infiniteAlarm, // Novo
+      infiniteAlarm,
+      dailyGoalHours, // Novo
       selectedSoundId: selectedSound.id,
       exportDate: new Date().toISOString()
     };
@@ -142,7 +147,8 @@ export default function App() {
         if (data.topics) setTopics(data.topics);
         if (data.history) setHistory(data.history);
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
-        if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm); // Novo
+        if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
+        if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours); // Novo
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -182,14 +188,14 @@ export default function App() {
     return () => clearInterval(timerRef.current);
   }, [isRunning, endTime]);
 
-  const playSound = (soundConfig, isInfinite = false) => {
+  const playSound = (soundConfig, duration) => { // duration pode ser number ou 'infinite'
     initAudio();
     const ctx = audioContextRef.current;
     if (!ctx) return;
 
     alarmPlayingRef.current = true;
     let startTime = ctx.currentTime;
-    const endTime = isInfinite ? Infinity : startTime + alarmDuration;
+    const endTime = duration === 'infinite' ? Infinity : startTime + duration;
 
     const playLoop = (time) => {
       if (!alarmPlayingRef.current || time >= endTime) {
@@ -221,10 +227,10 @@ export default function App() {
   const handleComplete = () => {
     setIsRunning(false);
     setIsAlarmPlaying(true);
-    playSound(selectedSound, infiniteAlarm);
+    playSound(selectedSound, infiniteAlarm ? 'infinite' : alarmDuration);
 
     if (mode === 'focus' && activeTopic) {
-      const spentMin = customTime; // Como completou, adiciona o customTime atual (que é o chunk final)
+      const spentMin = customTime;
       const today = new Date().toISOString().split('T')[0];
       
       const newTopics = topics.map(t => 
@@ -293,7 +299,7 @@ export default function App() {
         setTopics(newTopics);
         setHistory(newHistory);
       }
-      setCustomTime(Math.floor(timeLeft / 60)); // Atualiza customTime para o restante
+      setCustomTime(Math.floor(timeLeft / 60));
     }
   };
 
@@ -352,6 +358,37 @@ export default function App() {
     return days;
   }, [history]);
 
+  const currentStreak = useMemo(() => { // Novo: Cálculo de streak
+    let streak = 0;
+    const goalMins = 60; // Pelo menos 1 hora
+    for (let i = 0; i < calendarData.length; i++) {
+      if (calendarData[i].minutes >= goalMins) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }, [calendarData]);
+
+  const monthlyData = useMemo(() => { // Novo: Dados mensais para últimos 6 meses
+    const months = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      const monthStr = monthStart.toLocaleString('default', { month: 'short', year: '2-digit' });
+      const mins = history.filter(h => {
+        const hDate = new Date(h.date);
+        return hDate >= monthStart && hDate <= monthEnd;
+      }).reduce((acc, curr) => acc + curr.minutes, 0);
+      months.push({ month: monthStr, hours: (mins / 60).toFixed(1) });
+    }
+    return months;
+  }, [history]);
+
+  const maxMonthlyHours = Math.max(...monthlyData.map(m => m.hours), 1);
+
   return (
     <div className={`flex flex-col h-screen transition-colors duration-1000 ${mode === 'break' ? 'bg-zinc-950' : 'bg-black'} text-zinc-400 font-sans overflow-hidden`} onClick={initAudio}>
       <style>{`
@@ -370,6 +407,12 @@ export default function App() {
           position: absolute;
           animation: float 3s infinite linear;
           pointer-events: none;
+        }
+        .gradient-bg {
+          background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
+        }
+        .shadow-glow {
+          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
       `}</style>
 
@@ -499,9 +542,9 @@ export default function App() {
                   onClick={() => { 
                     initAudio(); 
                     if (isRunning) {
-                      handlePause(); // Novo: Trata pausa com registro de tempo parcial
+                      handlePause();
                     } else {
-                      setEndTime(Date.now() + timeLeft * 1000); // Reseta endTime ao resumir para ignorar tempo pausado
+                      setEndTime(Date.now() + timeLeft * 1000);
                     }
                     setIsRunning(!isRunning); 
                   }} 
@@ -514,7 +557,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Novo: Botão para parar alarme se estiver tocando */}
               {isAlarmPlaying && (
                 <button 
                   onClick={stopAlarm}
@@ -575,69 +617,84 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
-                  <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="gradient-bg border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square shadow-glow">
+                  <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400">
                     <Clock size={24} />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Total Estudado</span>
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-1">Total Estudado</span>
                     <h3 className="text-5xl font-bold text-white tabular-nums">{totalHours}h</h3>
                   </div>
                 </div>
 
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
-                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500">
+                <div className="gradient-bg border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square shadow-glow">
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400">
                     <Zap size={24} />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Média/Sessão</span>
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-1">Média/Sessão</span>
                     <h3 className="text-5xl font-bold text-white tabular-nums">{avgSession}m</h3>
                   </div>
                 </div>
 
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
-                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
+                <div className="gradient-bg border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square shadow-glow">
+                  <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400">
                     <Activity size={24} />
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
-                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Este Mês</span>
+                      <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">Este Mês</span>
                       <span className="text-xs font-bold text-white">{statsByPeriod.month}h</span>
                     </div>
                     <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
-                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Esta Semana</span>
+                      <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">Esta Semana</span>
                       <span className="text-xs font-bold text-white">{statsByPeriod.week}h</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Hoje</span>
-                      <span className="text-xs font-bold text-emerald-500">{statsByPeriod.day}h</span>
+                      <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">Hoje</span>
+                      <span className="text-xs font-bold text-emerald-400">{statsByPeriod.day}h</span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="gradient-bg border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square shadow-glow">
+                  <div className="w-12 h-12 bg-orange-500/20 rounded-2xl flex items-center justify-center text-orange-400">
+                    <Flame size={24} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-1">Streak Atual</span>
+                    <h3 className="text-5xl font-bold text-white tabular-nums">{currentStreak} dias</h3>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10 shadow-glow">
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <TrendingUp size={18} className="text-zinc-600" /> Consistência Diária
+                    <TrendingUp size={18} className="text-zinc-500" /> Consistência Diária
                   </h3>
                 </div>
                 <div className="flex gap-2 justify-center">
                   {calendarData.map((day, i) => {
                     const hasStudy = day.minutes > 0;
-                    let intensity;
+                    const goalMins = dailyGoalHours * 60;
+                    let intensity = 0.04;
+                    let baseColor = '16, 185, 129'; // Verde
 
-                    if (!hasStudy) {
-                      intensity = 0.04; // quase invisível para dias sem estudo
-                    } else if (day.minutes <= 15) {
-                      intensity = 0.15; // muito claro para sessões curtas
-                    } else if (day.minutes <= 45) {
-                      intensity = 0.4;
-                    } else if (day.minutes <= 90) {
-                      intensity = 0.7;
-                    } else {
-                      intensity = 0.95;
+                    if (hasStudy) {
+                      if (day.minutes <= 15) intensity = 0.15;
+                      else if (day.minutes <= 45) intensity = 0.4;
+                      else if (day.minutes <= 90) intensity = 0.7;
+                      else intensity = 0.95;
+
+                      if (goalMins > 0) {
+                        const progress = Math.min(day.minutes / goalMins, 1);
+                        intensity = progress * 0.95;
+                        if (day.minutes >= goalMins) {
+                          baseColor = '168, 85, 247'; // Roxo
+                        }
+                      }
                     }
 
                     return (
@@ -646,23 +703,55 @@ export default function App() {
                         title={`${day.date}: ${day.minutes} min`}
                         className="w-4 h-16 rounded-full transition-all hover:scale-y-110"
                         style={{ 
-                          backgroundColor: hasStudy ? `rgba(16, 185, 129, ${intensity})` : 'rgba(100, 100, 100, 0.12)',
+                          backgroundColor: hasStudy ? `rgba(${baseColor}, ${intensity})` : 'rgba(100, 100, 100, 0.12)',
                           border: !hasStudy ? '1px dashed rgba(100,100,100,0.3)' : 'none'
                         }}
                       />
                     );
                   })}
                 </div>
-                <div className="flex justify-between mt-4 px-2 text-[9px] font-bold text-zinc-700 uppercase tracking-widest">
+                <div className="flex justify-between mt-4 px-2 text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
                   <span>30 dias atrás</span>
                   <span>Hoje</span>
                 </div>
               </div>
 
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10 shadow-glow">
                 <div className="flex justify-between items-center mb-12">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <BarChart3 size={18} className="text-zinc-600" /> Horas por Tópico
+                    <BarChart2 size={18} className="text-zinc-500" /> Progresso Mensal
+                  </h3>
+                </div>
+                <div className="flex items-end justify-between h-48 gap-4 px-4">
+                  {monthlyData.map((m, i) => {
+                    const height = (m.hours / maxMonthlyHours) * 100;
+                    const prevHours = i < monthlyData.length - 1 ? monthlyData[i + 1].hours : m.hours;
+                    const diff = m.hours - prevHours;
+                    const trendColor = diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-zinc-400';
+                    const trendIcon = diff > 0 ? ArrowUp : diff < 0 ? ArrowDown : null;
+
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center group">
+                        <div className="relative w-full flex justify-center flex-1">
+                          <div 
+                            className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80"
+                            style={{ height: `${height}%`, background: 'linear-gradient(to top, #10B981, #3B82F6)', boxShadow: `0 0 40px -10px rgba(16,185,129,0.3)` }}
+                          />
+                        </div>
+                        <div className="mt-2 flex items-center gap-1">
+                          <span className="text-[8px] font-bold uppercase tracking-tighter text-zinc-500 group-hover:text-white transition-colors">{m.month}</span>
+                          {trendIcon && <trendIcon size={10} className={trendColor} />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10 shadow-glow">
+                <div className="flex justify-between items-center mb-12">
+                  <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
+                    <BarChart3 size={18} className="text-zinc-500" /> Horas por Tópico
                   </h3>
                 </div>
                 <div className="flex items-end justify-between h-48 gap-4 px-4">
@@ -679,7 +768,7 @@ export default function App() {
                                style={{ height: `${height}%`, backgroundColor: t.color, boxShadow: `0 0 40px -10px ${t.color}44` }}
                              />
                           </div>
-                          <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{t.name}</span>
+                          <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-500 group-hover:text-white transition-colors">{t.name}</span>
                         </div>
                       );
                     })
@@ -802,7 +891,7 @@ export default function App() {
                   {SOUND_LIBRARY.map(sound => (
                     <button 
                       key={sound.id}
-                      onClick={() => { setSelectedSound(sound); playSound(sound, 2); }}
+                      onClick={() => { setSelectedSound(sound); playSound(sound, 2); }} // Sempre 2s para amostra
                       className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${selectedSound.id === sound.id ? 'bg-zinc-900 border-zinc-600 text-white shadow-xl' : 'bg-transparent border-zinc-900 text-zinc-700 hover:border-zinc-800'}`}
                     >
                       <span className="text-[10px] font-bold uppercase tracking-widest">{sound.name}</span>
@@ -833,7 +922,6 @@ export default function App() {
                 </div>
               </section>
 
-              {/* Novo: Toggle para alarme infinito */}
               <section>
                 <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
                   <BellRing size={16} /> Alarme Contínuo
@@ -849,6 +937,29 @@ export default function App() {
                   >
                     <div className={`w-4 h-4 bg-white rounded-full transition-transform ${infiniteAlarm ? 'translate-x-6' : 'translate-x-0'}`} />
                   </button>
+                </div>
+              </section>
+
+              {/* Novo: Meta Diária */}
+              <section>
+                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                  <Target size={16} /> Meta Diária
+                </h2>
+                <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-white text-xs font-bold uppercase tracking-widest">Horas por Dia</span>
+                    <span className="text-zinc-600 text-[9px] font-bold uppercase">Defina 0 para desativar</span>
+                  </div>
+                  <input 
+                    type="number" 
+                    value={dailyGoalHours}
+                    min={0}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value) || 0);
+                      setDailyGoalHours(val);
+                    }}
+                    className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
+                  />
                 </div>
               </section>
 
