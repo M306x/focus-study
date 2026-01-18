@@ -25,6 +25,7 @@ export default function App() {
   const [mode, setMode] = useState('focus'); 
   const [selectedSound, setSelectedSound] = useState(SOUND_LIBRARY[0]);
   const [alarmDuration, setAlarmDuration] = useState(5);
+  const [infiniteAlarm, setInfiniteAlarm] = useState(false); // Novo: Opção para alarme infinito
   
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
@@ -33,10 +34,12 @@ export default function App() {
   const [customTime, setCustomTime] = useState(25);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
-  const [endTime, setEndTime] = useState(null); // Novo: Timestamp de fim do timer
+  const [endTime, setEndTime] = useState(null);
+  const [isAlarmPlaying, setIsAlarmPlaying] = useState(false); // Novo: Estado para alarme tocando
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
   const fileInputRef = useRef(null);
+  const alarmPlayingRef = useRef(false); // Novo: Ref para controlar loop do alarme
 
   const [modalType, setModalType] = useState(null); 
   const [editingTopic, setEditingTopic] = useState(null);
@@ -51,6 +54,7 @@ export default function App() {
         if (data.topics) setTopics(data.topics);
         if (data.history) setHistory(data.history);
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
+        if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm); // Novo
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -67,10 +71,11 @@ export default function App() {
       topics,
       history,
       alarmDuration,
+      infiniteAlarm, // Novo
       selectedSoundId: selectedSound.id
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-  }, [topics, history, alarmDuration, selectedSound]);
+  }, [topics, history, alarmDuration, infiniteAlarm, selectedSound]);
 
   // --- RESET SEMANAL AUTOMÁTICO DE weeklyMinutes ---
   useEffect(() => {
@@ -109,6 +114,7 @@ export default function App() {
       topics,
       history,
       alarmDuration,
+      infiniteAlarm, // Novo
       selectedSoundId: selectedSound.id,
       exportDate: new Date().toISOString()
     };
@@ -136,6 +142,7 @@ export default function App() {
         if (data.topics) setTopics(data.topics);
         if (data.history) setHistory(data.history);
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
+        if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm); // Novo
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -157,7 +164,7 @@ export default function App() {
     }
   };
 
-  // --- LÓGICA DO TIMER CORRIGIDA COM TIMESTAMP ---
+  // --- LÓGICA DO TIMER ---
   useEffect(() => {
     if (isRunning) {
       timerRef.current = setInterval(() => {
@@ -173,18 +180,23 @@ export default function App() {
     }
 
     return () => clearInterval(timerRef.current);
-  }, [isRunning, endTime]); // Dependências atualizadas
+  }, [isRunning, endTime]);
 
-  const playSound = (soundConfig, totalSeconds) => {
+  const playSound = (soundConfig, isInfinite = false) => {
     initAudio();
     const ctx = audioContextRef.current;
     if (!ctx) return;
-    
+
+    alarmPlayingRef.current = true;
     let startTime = ctx.currentTime;
-    const endTime = startTime + totalSeconds;
+    const endTime = isInfinite ? Infinity : startTime + alarmDuration;
 
     const playLoop = (time) => {
-      if (time >= endTime) return;
+      if (!alarmPlayingRef.current || time >= endTime) {
+        alarmPlayingRef.current = false;
+        setIsAlarmPlaying(false);
+        return;
+      }
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = soundConfig.type;
@@ -201,19 +213,26 @@ export default function App() {
     playLoop(startTime);
   };
 
+  const stopAlarm = () => {
+    alarmPlayingRef.current = false;
+    setIsAlarmPlaying(false);
+  };
+
   const handleComplete = () => {
     setIsRunning(false);
-    playSound(selectedSound, alarmDuration);
-    
+    setIsAlarmPlaying(true);
+    playSound(selectedSound, infiniteAlarm);
+
     if (mode === 'focus' && activeTopic) {
+      const spentMin = customTime; // Como completou, adiciona o customTime atual (que é o chunk final)
       const today = new Date().toISOString().split('T')[0];
       
       const newTopics = topics.map(t => 
         t.id === activeTopic.id 
           ? { 
               ...t, 
-              weeklyMinutes: t.weeklyMinutes + customTime,
-              totalMinutes: (t.totalMinutes || 0) + customTime 
+              weeklyMinutes: (t.weeklyMinutes || 0) + spentMin,
+              totalMinutes: (t.totalMinutes || 0) + spentMin 
             } 
           : t
       );
@@ -222,7 +241,7 @@ export default function App() {
         id: Date.now(),
         topicId: activeTopic.id,
         topicName: activeTopic.name,
-        minutes: customTime,
+        minutes: spentMin,
         date: today,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         color: activeTopic.color
@@ -240,6 +259,41 @@ export default function App() {
       setMode('focus');
       setCustomTime(25);
       setTimeLeft(25 * 60);
+    }
+  };
+
+  const handlePause = () => {
+    if (mode === 'focus' && activeTopic) {
+      const spentMin = customTime - Math.floor(timeLeft / 60);
+      if (spentMin > 0) {
+        const today = new Date().toISOString().split('T')[0];
+        
+        const newTopics = topics.map(t => 
+          t.id === activeTopic.id 
+            ? { 
+                ...t, 
+                weeklyMinutes: (t.weeklyMinutes || 0) + spentMin,
+                totalMinutes: (t.totalMinutes || 0) + spentMin 
+              } 
+            : t
+        );
+        
+        const newHistoryEntry = {
+          id: Date.now(),
+          topicId: activeTopic.id,
+          topicName: activeTopic.name,
+          minutes: spentMin,
+          date: today,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          color: activeTopic.color
+        };
+        
+        const newHistory = [newHistoryEntry, ...history];
+        
+        setTopics(newTopics);
+        setHistory(newHistory);
+      }
+      setCustomTime(Math.floor(timeLeft / 60)); // Atualiza customTime para o restante
     }
   };
 
@@ -444,9 +498,10 @@ export default function App() {
                   disabled={mode === 'focus' && !activeTopic}
                   onClick={() => { 
                     initAudio(); 
-                    if (!isRunning) {
-                      // Novo: Define endTime ao iniciar
-                      setEndTime(Date.now() + timeLeft * 1000);
+                    if (isRunning) {
+                      handlePause(); // Novo: Trata pausa com registro de tempo parcial
+                    } else {
+                      setEndTime(Date.now() + timeLeft * 1000); // Reseta endTime ao resumir para ignorar tempo pausado
                     }
                     setIsRunning(!isRunning); 
                   }} 
@@ -458,6 +513,16 @@ export default function App() {
                   <RotateCcw size={24} />
                 </button>
               </div>
+
+              {/* Novo: Botão para parar alarme se estiver tocando */}
+              {isAlarmPlaying && (
+                <button 
+                  onClick={stopAlarm}
+                  className="mt-8 px-8 py-3 bg-red-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all"
+                >
+                  Parar Alarme
+                </button>
+              )}
             </div>
           )}
 
@@ -765,6 +830,25 @@ export default function App() {
                     }}
                     className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
                   />
+                </div>
+              </section>
+
+              {/* Novo: Toggle para alarme infinito */}
+              <section>
+                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                  <BellRing size={16} /> Alarme Contínuo
+                </h2>
+                <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-white text-xs font-bold uppercase tracking-widest">Toque Indefinido</span>
+                    <span className="text-zinc-600 text-[9px] font-bold uppercase">Até parar manualmente</span>
+                  </div>
+                  <button 
+                    onClick={() => setInfiniteAlarm(!infiniteAlarm)}
+                    className={`w-12 h-6 rounded-full p-1 transition-colors ${infiniteAlarm ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${infiniteAlarm ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </button>
                 </div>
               </section>
 
