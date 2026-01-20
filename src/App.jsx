@@ -41,19 +41,26 @@ export default function App() {
     const saved = localStorage.getItem('study_topics');
     return saved ? JSON.parse(saved) : INITIAL_TOPICS;
   });
+  const [tasks, setTasks] = useState(() => {
+    const saved = localStorage.getItem('study_tasks');
+    return saved ? JSON.parse(saved) : INITIAL_TASKS;
+  });
   const [selectedTopic, setSelectedTopic] = useState(topics[0]?.id || 1);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [selectedSound, setSelectedSound] = useState('zen');
   const [editingTopic, setEditingTopic] = useState(null);
   const [showNewTopicModal, setShowNewTopicModal] = useState(false);
   const [newTopicName, setNewTopicName] = useState('');
+  const [newTopicTarget, setNewTopicTarget] = useState(60);
+  const [newTopicColor, setNewTopicColor] = useState('#3B82F6');
 
   const audioCtx = useRef(null);
 
   useEffect(() => {
     localStorage.setItem('study_history', JSON.stringify(history));
     localStorage.setItem('study_topics', JSON.stringify(topics));
-  }, [history, topics]);
+    localStorage.setItem('study_tasks', JSON.stringify(tasks));
+  }, [history, topics, tasks]);
 
   useEffect(() => {
     let interval = null;
@@ -96,14 +103,14 @@ export default function App() {
     osc.stop(audioCtx.current.currentTime + sound.duration);
   };
 
-  // --- LÓGICA DE DADOS (STREAK, TEMPOS E TÓPICOS) ---
+  // --- LÓGICA DE ESTATÍSTICAS CORRIGIDA ---
   const statsByPeriod = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const currentMonthStr = now.toISOString().slice(0, 7);
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setHours(0,0,0,0);
 
     const dayMins = history.filter(h => h.date === todayStr).reduce((acc, curr) => acc + curr.minutes, 0);
     const weekMins = history.filter(h => new Date(h.date) >= startOfWeek).reduce((acc, curr) => acc + curr.minutes, 0);
@@ -133,45 +140,45 @@ export default function App() {
     let streak = 0;
     const goalMins = 60; 
     const daysCheck = [...calendarData].reverse();
-    for (let i = 0; i < daysCheck.length; i++) {
+    // Se hoje ainda não bateu a meta, começamos a contar a partir de ontem
+    const startIdx = daysCheck[0].minutes < goalMins ? 1 : 0;
+    
+    for (let i = startIdx; i < daysCheck.length; i++) {
       if (daysCheck[i].minutes >= goalMins) {
         streak++;
       } else {
-        if (i === 0) continue; 
-        break; 
+        break;
       }
     }
     return streak;
   }, [calendarData]);
 
-  const topicsMonthlyStats = useMemo(() => {
-    const currentMonthStr = new Date().toISOString().slice(0, 7);
-    return topics.map(topic => {
-      const mins = history
-        .filter(h => h.topicId === topic.id && h.date.startsWith(currentMonthStr))
-        .reduce((acc, h) => acc + h.minutes, 0);
-      return { ...topic, currentMonthMinutes: mins };
-    });
-  }, [topics, history]);
-
   const monthlyData = useMemo(() => {
     const months = [];
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
-      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
-      const monthStr = monthStart.toLocaleString('default', { month: 'short', year: '2-digit' });
-      const mins = history.filter(h => {
-        const hDate = new Date(h.date);
-        return hDate >= monthStart && hDate <= monthEnd;
-      }).reduce((acc, curr) => acc + curr.minutes, 0);
+      const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthStr = m.toLocaleString('default', { month: 'short', year: '2-digit' });
+      const currentM = m.toISOString().slice(0, 7);
+      const mins = history.filter(h => h.date.startsWith(currentM)).reduce((acc, curr) => acc + curr.minutes, 0);
       months.push({ month: monthStr, hours: (mins / 60).toFixed(1) });
     }
     return months;
   }, [history]);
 
+  // Horas por tópico - Agora com reset mensal
+  const topicStats = useMemo(() => {
+    const currentMonthStr = new Date().toISOString().slice(0, 7);
+    return topics.map(topic => {
+      const mins = history
+        .filter(h => h.topicId === topic.id && h.date.startsWith(currentMonthStr))
+        .reduce((acc, h) => acc + h.minutes, 0);
+      return { ...topic, currentMins: mins };
+    });
+  }, [topics, history]);
+
   const maxMonthlyHours = Math.max(...monthlyData.map(m => parseFloat(m.hours)), 1);
-  const maxTopicMonthMins = Math.max(...topicsMonthlyStats.map(t => t.currentMonthMinutes), 1);
+  const maxTopicMins = Math.max(...topicStats.map(t => t.currentMins), 1);
 
   const formatTime = (s) => {
     const mins = Math.floor(s / 60);
@@ -181,10 +188,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black text-zinc-400 font-sans selection:bg-emerald-500/30">
+      {/* NAV FIXA */}
       <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900/80 backdrop-blur-2xl border border-zinc-800 p-2 rounded-full flex gap-2 z-50">
         {[
           { id: 'timer', icon: Timer },
           { id: 'dashboard', icon: Activity },
+          { id: 'goals', icon: Target },
           { id: 'topics', icon: Tag },
           { id: 'settings', icon: Settings }
         ].map(item => (
@@ -202,7 +211,7 @@ export default function App() {
         {view === 'timer' && (
           <div className="flex flex-col items-center gap-12 pt-10">
             <div className="flex flex-col items-center gap-4">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-center gap-2">
                 {topics.map(t => (
                   <button
                     key={t.id}
@@ -244,11 +253,9 @@ export default function App() {
           <div className="space-y-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-3xl font-bold text-white tracking-tighter">Status</h2>
-              <div className="px-4 py-1.5 bg-zinc-900 rounded-full text-[10px] font-bold text-zinc-500 uppercase tracking-widest border border-zinc-800">
-                Foco Mensal
-              </div>
             </div>
 
+            {/* GRID DE TEMPOS EXPANDIDO */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-center">
                 <div className="flex justify-between items-end divide-x divide-zinc-800/50">
@@ -278,34 +285,33 @@ export default function App() {
               </div>
             </div>
 
+            {/* HORAS POR TÓPICO - MENSAL */}
             <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2rem] p-8">
               <div className="flex justify-between items-center mb-8">
                 <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
                   <BarChart3 size={16} className="text-zinc-600" /> Horas por Tópico
                 </h3>
-                <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">Este Mês</span>
+                <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">Foco do Mês</span>
               </div>
               <div className="flex flex-col gap-4">
-                {topicsMonthlyStats.map(t => {
-                  const percent = maxTopicMonthMins > 0 ? (t.currentMonthMinutes / maxTopicMonthMins) * 100 : 0;
-                  return (
-                    <div key={t.id} className="group">
-                      <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest mb-1 text-zinc-500">
-                        <span>{t.name}</span>
-                        <span>{(t.currentMonthMinutes / 60).toFixed(1)}h</span>
-                      </div>
-                      <div className="w-full bg-zinc-900 rounded-full h-3 overflow-hidden">
-                        <div 
-                          className="h-full rounded-full transition-all duration-1000"
-                          style={{ width: `${percent}%`, backgroundColor: t.color }}
-                        />
-                      </div>
+                {topicStats.map(t => (
+                  <div key={t.id} className="group">
+                    <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest mb-1 text-zinc-500">
+                      <span>{t.name}</span>
+                      <span>{(t.currentMins / 60).toFixed(1)}h</span>
                     </div>
-                  );
-                })}
+                    <div className="w-full bg-zinc-900 rounded-full h-3 overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-1000"
+                        style={{ width: `${(t.currentMins / maxTopicMins) * 100}%`, backgroundColor: t.color }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
+            {/* PROGRESSO MENSAL ABAIXO */}
             <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2rem] p-8">
               <div className="flex justify-between items-center mb-10">
                 <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
@@ -323,11 +329,45 @@ export default function App() {
                           style={{ height: `${height}%`, background: 'linear-gradient(to top, #27272a, #52525b)' }}
                         />
                       </div>
-                      <span className="mt-3 text-[8px] font-bold uppercase tracking-tighter text-zinc-600">{m.month}</span>
+                      <span className="mt-3 text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{m.month}</span>
                     </div>
                   );
                 })}
               </div>
+            </div>
+          </div>
+        )}
+
+        {view === 'goals' && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold text-white tracking-tighter mb-8">Metas</h2>
+            <div className="grid gap-4">
+              {topics.map(topic => {
+                const todayMins = history
+                  .filter(h => h.topicId === topic.id && h.date === new Date().toISOString().split('T')[0])
+                  .reduce((acc, h) => acc + h.minutes, 0);
+                const progress = Math.min((todayMins / topic.targetMinutes) * 100, 100);
+                
+                return (
+                  <div key={topic.id} className="bg-zinc-900/40 border border-zinc-900 p-6 rounded-[2rem]">
+                    <div className="flex justify-between items-end mb-4">
+                      <div>
+                        <h4 className="text-white font-bold tracking-tight">{topic.name}</h4>
+                        <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
+                          {todayMins} / {topic.targetMinutes} min hoje
+                        </p>
+                      </div>
+                      <span className="text-2xl font-bold text-white tracking-tighter">{Math.round(progress)}%</span>
+                    </div>
+                    <div className="w-full bg-zinc-950 rounded-full h-2 overflow-hidden border border-zinc-900">
+                      <div 
+                        className="h-full rounded-full transition-all duration-1000"
+                        style={{ width: `${progress}%`, backgroundColor: topic.color }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -340,7 +380,7 @@ export default function App() {
                 onClick={() => setShowNewTopicModal(true)}
                 className="bg-white text-black p-2 rounded-full hover:scale-110 transition-transform"
               >
-                <Plus size={20} />
+                <X className="rotate-45" size={20} />
               </button>
             </div>
             <div className="grid gap-4">
@@ -392,6 +432,64 @@ export default function App() {
         )}
       </main>
 
+      {/* MODAL NOVO TÓPICO */}
+      {showNewTopicModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm px-6">
+          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[3rem] w-full max-w-sm">
+            <h3 className="text-white font-bold text-xl mb-8 tracking-tighter text-center">Novo Tópico</h3>
+            <div className="space-y-6">
+              <input 
+                autoFocus
+                type="text" 
+                placeholder="Nome do Tópico"
+                value={newTopicName}
+                onChange={(e) => setNewTopicName(e.target.value)}
+                className="w-full bg-black border border-zinc-800 rounded-2xl p-4 text-white font-bold focus:outline-none focus:border-white transition-colors"
+              />
+              <div>
+                <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-3 block">Meta Diária (Minutos)</label>
+                <input 
+                  type="number" 
+                  value={newTopicTarget}
+                  onChange={(e) => setNewTopicTarget(parseInt(e.target.value))}
+                  className="w-full bg-black border border-zinc-800 rounded-2xl p-4 text-white font-bold focus:outline-none focus:border-white transition-colors"
+                />
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                {COLOR_OPTIONS.map(c => (
+                  <button 
+                    key={c}
+                    onClick={() => setNewTopicColor(c)}
+                    className={`aspect-square rounded-full transition-transform hover:scale-110 ${newTopicColor === c ? 'border-4 border-white' : 'border-2 border-transparent'}`}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-4 mt-10">
+              <button 
+                onClick={() => setShowNewTopicModal(false)}
+                className="flex-1 py-4 text-zinc-500 font-bold text-[10px] uppercase tracking-widest"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  if(!newTopicName) return;
+                  setTopics([...topics, { id: Date.now(), name: newTopicName, color: newTopicColor, targetMinutes: newTopicTarget }]);
+                  setShowNewTopicModal(false);
+                  setNewTopicName('');
+                }}
+                className="flex-1 py-4 bg-white text-black rounded-2xl font-bold text-[10px] uppercase tracking-widest"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIÇÃO COR */}
       {editingTopic && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm px-6">
           <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2rem] w-full max-w-xs">
@@ -409,14 +507,10 @@ export default function App() {
                 />
               ))}
             </div>
-            <button onClick={() => setEditingTopic(null)} className="w-full py-4 text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Cancelar</button>
+            <button onClick={() => setEditingTopic(null)} className="w-full py-4 text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Sair</button>
           </div>
         </div>
       )}
     </div>
   );
-}
-
-function Plus({ size }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
 }
