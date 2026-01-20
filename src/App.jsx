@@ -7,7 +7,8 @@ import {
   Calendar, Award, Zap, ChevronRight,
   Palette, BellRing, Trash2, Coffee, Brain,
   BookOpen, Download, Upload, FileJson,
-  Flame, BarChart2, ArrowUp, ArrowDown
+  Flame, BarChart2, ArrowUp, ArrowDown,
+  Droplet
 } from 'lucide-react';
 
 const SOUND_LIBRARY = [
@@ -28,6 +29,10 @@ export default function App() {
   const [alarmDuration, setAlarmDuration] = useState(5);
   const [infiniteAlarm, setInfiniteAlarm] = useState(false);
   const [dailyGoalHours, setDailyGoalHours] = useState(7);
+  const [waterAlertInterval, setWaterAlertInterval] = useState(1); // Novo: Intervalo em horas para alerta de água
+  const [waterSoundSameAsAlarm, setWaterSoundSameAsAlarm] = useState(true); // Novo: Usar mesmo som do alarme
+  const [selectedWaterSound, setSelectedWaterSound] = useState(SOUND_LIBRARY[0]); // Novo: Som personalizado para água
+  const [waterAlertDuration, setWaterAlertDuration] = useState(5); // Novo: Duração do alerta de água
   
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
@@ -38,6 +43,7 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
+  const [lastWaterAlertTime, setLastWaterAlertTime] = useState(null); // Novo: Último tempo de alerta de água
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -58,6 +64,13 @@ export default function App() {
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
         if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
+        if (data.waterAlertInterval) setWaterAlertInterval(data.waterAlertInterval);
+        if (data.waterSoundSameAsAlarm !== undefined) setWaterSoundSameAsAlarm(data.waterSoundSameAsAlarm);
+        if (data.selectedWaterSoundId) {
+          const sound = SOUND_LIBRARY.find(s => s.id === data.selectedWaterSoundId);
+          if (sound) setSelectedWaterSound(sound);
+        }
+        if (data.waterAlertDuration) setWaterAlertDuration(data.waterAlertDuration);
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -76,17 +89,21 @@ export default function App() {
       alarmDuration,
       infiniteAlarm,
       dailyGoalHours,
+      waterAlertInterval,
+      waterSoundSameAsAlarm,
+      selectedWaterSoundId: selectedWaterSound.id,
+      waterAlertDuration,
       selectedSoundId: selectedSound.id
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-  }, [topics, history, alarmDuration, infiniteAlarm, dailyGoalHours, selectedSound]);
+  }, [topics, history, alarmDuration, infiniteAlarm, dailyGoalHours, waterAlertInterval, waterSoundSameAsAlarm, selectedWaterSound, waterAlertDuration, selectedSound]);
 
   // --- RESET SEMANAL AUTOMÁTICO DE weeklyMinutes ---
   useEffect(() => {
     const updateWeeklyMinutes = () => {
       const now = new Date();
       const startOfCurrentWeek = new Date(now);
-      startOfCurrentWeek.setDate(now.getDate() - (now.getDay() + 1) % 7); // Semana começa no sábado (0=dom, 6=sáb)
+      startOfCurrentWeek.setDate(now.getDate() - (now.getDay() + 1) % 7); // Semana começa no sábado
       startOfCurrentWeek.setHours(23, 0, 0, 0); // Reset no sábado às 23h
 
       setTopics(prevTopics =>
@@ -120,6 +137,10 @@ export default function App() {
       alarmDuration,
       infiniteAlarm,
       dailyGoalHours,
+      waterAlertInterval,
+      waterSoundSameAsAlarm,
+      selectedWaterSoundId: selectedWaterSound.id,
+      waterAlertDuration,
       selectedSoundId: selectedSound.id,
       exportDate: new Date().toISOString()
     };
@@ -149,6 +170,13 @@ export default function App() {
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
         if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
+        if (data.waterAlertInterval) setWaterAlertInterval(data.waterAlertInterval);
+        if (data.waterSoundSameAsAlarm !== undefined) setWaterSoundSameAsAlarm(data.waterSoundSameAsAlarm);
+        if (data.selectedWaterSoundId) {
+          const sound = SOUND_LIBRARY.find(s => s.id === data.selectedWaterSoundId);
+          if (sound) setSelectedWaterSound(sound);
+        }
+        if (data.waterAlertDuration) setWaterAlertDuration(data.waterAlertDuration);
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -178,6 +206,16 @@ export default function App() {
         const remaining = Math.max(0, Math.round((endTime - now) / 1000));
         setTimeLeft(remaining);
 
+        // Novo: Verificar alerta de água
+        if (mode === 'focus' && waterAlertInterval > 0 && lastWaterAlertTime) {
+          const elapsedSinceLast = (now - lastWaterAlertTime) / (1000 * 60 * 60); // Em horas
+          if (elapsedSinceLast >= waterAlertInterval) {
+            const waterSound = waterSoundSameAsAlarm ? selectedSound : selectedWaterSound;
+            playSound(waterSound, waterAlertDuration);
+            setLastWaterAlertTime(now);
+          }
+        }
+
         if (remaining <= 0) {
           clearInterval(timerRef.current);
           handleComplete();
@@ -186,7 +224,7 @@ export default function App() {
     }
 
     return () => clearInterval(timerRef.current);
-  }, [isRunning, endTime]);
+  }, [isRunning, endTime, lastWaterAlertTime, mode, waterAlertInterval, waterSoundSameAsAlarm, selectedSound, selectedWaterSound, waterAlertDuration]);
 
   const playSound = (soundConfig, duration) => {
     initAudio();
@@ -226,7 +264,7 @@ export default function App() {
 
   const handleComplete = () => {
     setIsRunning(false);
-    initAudio(); // Garantir que audio esteja inicializado antes do som
+    initAudio();
     setIsAlarmPlaying(true);
     playSound(selectedSound, infiniteAlarm ? 'infinite' : alarmDuration);
 
@@ -322,11 +360,6 @@ export default function App() {
     return `${hDisplay}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const totalMinutes = topics.reduce((acc, t) => acc + (t.totalMinutes || 0), 0);
-  const totalHours = (totalMinutes / 60).toFixed(1);
-  const avgSession = history.length > 0 ? (totalMinutes / history.length).toFixed(0) : 0;
-  const maxMins = Math.max(...topics.map(t => t.totalMinutes || 0), 1);
-
   const statsByPeriod = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -346,6 +379,8 @@ export default function App() {
     };
   }, [history]);
 
+  const monthlyTotalHours = statsByPeriod.month; // Novo: Total estudado só do mês
+
   const calendarData = useMemo(() => {
     const days = [];
     const now = new Date();
@@ -362,7 +397,8 @@ export default function App() {
   const currentStreak = useMemo(() => {
     let streak = 0;
     const goalMins = 60;
-    for (let i = 0; i < calendarData.length; i++) {
+    // Inverter para começar de hoje para trás
+    for (let i = calendarData.length - 1; i >= 0; i--) {
       if (calendarData[i].minutes >= goalMins) {
         streak++;
       } else {
@@ -390,6 +426,16 @@ export default function App() {
 
   const maxMonthlyHours = Math.max(...monthlyData.map(m => m.hours), 1);
 
+  const monthlyTopicMins = useMemo(() => { // Novo: Minutos por tópico no mês atual
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    return topics.map(t => {
+      const mins = history.filter(h => h.topicId === t.id && new Date(h.date) >= startOfMonth).reduce((acc, curr) => acc + curr.minutes, 0);
+      return { ...t, monthlyMinutes: mins };
+    });
+  }, [topics, history]);
+
+  const maxMonthlyTopicMins = Math.max(...monthlyTopicMins.map(t => t.monthlyMinutes || 0), 1);
+
   return (
     <div className={`flex flex-col h-screen transition-colors duration-1000 ${mode === 'break' ? 'bg-zinc-950' : 'bg-black'} text-zinc-400 font-sans overflow-hidden`} onClick={initAudio}>
       <style>{`
@@ -409,11 +455,12 @@ export default function App() {
           animation: float 3s infinite linear;
           pointer-events: none;
         }
-        .gradient-bg {
-          background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
+        @keyframes barGrow {
+          0% { height: 0%; }
+          100% { height: 100%; }
         }
-        .shadow-glow {
-          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        .bar-grow {
+          animation: barGrow 1s ease-out forwards;
         }
       `}</style>
 
@@ -546,6 +593,9 @@ export default function App() {
                       handlePause();
                     } else {
                       setEndTime(Date.now() + timeLeft * 1000);
+                      if (mode === 'focus' && waterAlertInterval > 0) {
+                        setLastWaterAlertTime(Date.now());
+                      }
                     }
                     setIsRunning(!isRunning); 
                   }} 
@@ -574,12 +624,16 @@ export default function App() {
                <h2 className="text-2xl font-bold text-white mb-8 uppercase text-xs tracking-widest">Tópicos e Cores</h2>
                <div className="space-y-3 mb-8">
                  {topics.map(t => (
-                   <div key={t.id} className="flex items-center justify-between p-4 bg-zinc-900/20 border border-zinc-900 rounded-2xl group">
+                   <div key={t.id} className="flex items-center justify-between p-4 bg-zinc-900/30 border border-zinc-900 rounded-2xl group transition-all hover:bg-zinc-900/50">
                      <div className="flex items-center gap-4">
-                       <button 
-                         onClick={() => setEditingTopic(t)}
-                         className="w-5 h-5 rounded-full ring-2 ring-zinc-800 ring-offset-2 ring-offset-black transition-transform hover:scale-110" 
-                         style={{ backgroundColor: t.color }} 
+                       <input 
+                         type="color"
+                         value={t.color}
+                         onChange={(e) => {
+                           const updated = topics.map(x => x.id === t.id ? {...x, color: e.target.value} : x);
+                           setTopics(updated);
+                         }}
+                         className="w-5 h-5 rounded-full cursor-pointer transition-transform hover:scale-110"
                        />
                        <span className="text-white text-sm font-bold uppercase tracking-wide">{t.name}</span>
                      </div>
@@ -612,30 +666,20 @@ export default function App() {
           {view === 'dashboard' && (
             <div className="space-y-12">
               <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold text-white tracking-tighter">Status</h2>
+                <h2 className="text-3xl font-bold text-white tracking-tighter">STATUS</h2>
                 <div className="px-4 py-1.5 bg-zinc-900 rounded-full text-[10px] font-bold text-zinc-500 uppercase tracking-widest border border-zinc-800">
                   Resumo Geral
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
                   <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
                     <Clock size={24} />
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Total Estudado</span>
-                    <h3 className="text-5xl font-bold text-white tabular-nums">{totalHours}h</h3>
-                  </div>
-                </div>
-
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
-                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500">
-                    <Zap size={24} />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Média/Sessão</span>
-                    <h3 className="text-5xl font-bold text-white tabular-nums">{avgSession}m</h3>
+                    <h3 className="text-5xl font-bold text-white tabular-nums">{monthlyTotalHours}h</h3>
                   </div>
                 </div>
 
@@ -730,13 +774,14 @@ export default function App() {
                     const diff = m.hours - prevHours;
                     const trendColor = diff > 0 ? 'text-emerald-500' : diff < 0 ? 'text-red-500' : 'text-zinc-500';
                     const trendIcon = diff > 0 ? ArrowUp : diff < 0 ? ArrowDown : null;
+                    const barColor = diff > 0 ? '#10B981' : diff < 0 ? '#EF4444' : '#3B82F6';
 
                     return (
                       <div key={i} className="flex-1 flex flex-col items-center group">
                         <div className="relative w-full flex justify-center flex-1">
                           <div 
-                            className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80"
-                            style={{ height: `${height}%`, background: 'linear-gradient(to top, #10B981, #3B82F6)', boxShadow: `0 0 40px -10px rgba(16,185,129,0.3)` }}
+                            className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80 bar-grow"
+                            style={{ height: `${height}%`, backgroundColor: barColor, boxShadow: `0 0 40px -10px ${barColor}44` }}
                           />
                         </div>
                         <div className="mt-2 flex items-center gap-1">
@@ -759,8 +804,8 @@ export default function App() {
                   {topics.length === 0 ? (
                     <div className="w-full flex items-center justify-center text-zinc-800 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
                   ) : (
-                    topics.map(t => {
-                      const height = ((t.totalMinutes || 0) / maxMins) * 100;
+                    monthlyTopicMins.map(t => {
+                      const height = ((t.monthlyMinutes || 0) / maxMonthlyTopicMins) * 100;
                       return (
                         <div key={t.id} className="flex-1 flex flex-col items-center group">
                           <div className="relative w-full flex justify-center flex-1">
@@ -960,6 +1005,76 @@ export default function App() {
                     }}
                     className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
                   />
+                </div>
+              </section>
+
+              {/* Novo: Alerta de Água */}
+              <section>
+                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                  <Droplet size={16} /> Alerta de Água
+                </h2>
+                <div className="space-y-4">
+                  <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-white text-xs font-bold uppercase tracking-widest">Intervalo</span>
+                      <span className="text-zinc-600 text-[9px] font-bold uppercase">Horas entre alertas</span>
+                    </div>
+                    <input 
+                      type="number" 
+                      value={waterAlertInterval}
+                      min={0}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                        setWaterAlertInterval(val);
+                      }}
+                      className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
+                    />
+                  </div>
+
+                  <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-white text-xs font-bold uppercase tracking-widest">Duração</span>
+                      <span className="text-zinc-600 text-[9px] font-bold uppercase">Segundos de toque</span>
+                    </div>
+                    <input 
+                      type="number" 
+                      value={waterAlertDuration}
+                      min={1}
+                      onChange={(e) => {
+                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                        setWaterAlertDuration(val);
+                      }}
+                      className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
+                    />
+                  </div>
+
+                  <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-white text-xs font-bold uppercase tracking-widest">Som Igual ao Alarme</span>
+                      <span className="text-zinc-600 text-[9px] font-bold uppercase">Ou personalizado</span>
+                    </div>
+                    <button 
+                      onClick={() => setWaterSoundSameAsAlarm(!waterSoundSameAsAlarm)}
+                      className={`w-12 h-6 rounded-full p-1 transition-colors ${waterSoundSameAsAlarm ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                    >
+                      <div className={`w-4 h-4 bg-white rounded-full transition-transform ${waterSoundSameAsAlarm ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+
+                  {!waterSoundSameAsAlarm && (
+                    <div className="grid gap-2">
+                      {SOUND_LIBRARY.map(sound => (
+                        <button 
+                          key={sound.id}
+                          onClick={() => { setSelectedWaterSound(sound); playSound(sound, 2); }}
+                          className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${selectedWaterSound.id === sound.id ? 'bg-zinc-900 border-zinc-600 text-white shadow-xl' : 'bg-transparent border-zinc-900 text-zinc-700 hover:border-zinc-800'}`}
+                        >
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{sound.name}</span>
+                          <Volume2 size={14} className={selectedWaterSound.id === sound.id ? "text-white" : "text-zinc-800"} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </section>
 
