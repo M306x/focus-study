@@ -7,7 +7,9 @@ import {
   Calendar, Award, Zap, ChevronRight,
   Palette, BellRing, Trash2, Coffee, Brain,
   BookOpen, Download, Upload, FileJson,
-  Flame, BarChart2, ArrowUp, ArrowDown
+  Flame, BarChart2, ArrowUp, ArrowDown,
+  ChevronLeft,
+  MoreHorizontal
 } from 'lucide-react';
 
 const SOUND_LIBRARY = [
@@ -20,6 +22,16 @@ const SOUND_LIBRARY = [
 const COLOR_OPTIONS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#FFFFFF', '#4ADE80', '#A855F7', '#F97316'];
 
 const STORAGE_KEY = 'study_dashboard_data_v1';
+
+const NOTION_COLORS = [
+  { name: 'Red', hex: '#ef4444' },
+  { name: 'Blue', hex: '#3b82f6' },
+  { name: 'Green', hex: '#10b981' },
+  { name: 'Orange', hex: '#f97316' },
+  { name: 'Purple', hex: '#a855f7' },
+  { name: 'Pink', hex: '#ec4899' },
+  { name: 'Cyan', hex: '#06b6d4' }
+];
 
 export default function App() {
   const [view, setView] = useState('focus');
@@ -47,6 +59,9 @@ export default function App() {
   const [editingTopic, setEditingTopic] = useState(null);
   const [tempInputValue, setTempInputValue] = useState("");
 
+  const [calendarEvents, setCalendarEvents] = useState([]); 
+  const [currentDate, setCurrentDate] = useState(new Date());
+
   // --- PERSISTÊNCIA: CARREGAR DADOS DO LOCALSTORAGE ---
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
@@ -58,6 +73,7 @@ export default function App() {
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
         if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
+        if (data.calendarEvents) setCalendarEvents(data.calendarEvents);
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -76,10 +92,11 @@ export default function App() {
       alarmDuration,
       infiniteAlarm,
       dailyGoalHours,
+      calendarEvents,
       selectedSoundId: selectedSound.id
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-  }, [topics, history, alarmDuration, infiniteAlarm, dailyGoalHours, selectedSound]);
+  }, [topics, history, alarmDuration, infiniteAlarm, dailyGoalHours, calendarEvents, selectedSound]);
 
   // --- RESET SEMANAL AUTOMÁTICO DE weeklyMinutes ---
   useEffect(() => {
@@ -120,6 +137,7 @@ export default function App() {
       alarmDuration,
       infiniteAlarm,
       dailyGoalHours,
+      calendarEvents,
       selectedSoundId: selectedSound.id,
       exportDate: new Date().toISOString()
     };
@@ -149,6 +167,7 @@ export default function App() {
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
         if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
+        if (data.calendarEvents) setCalendarEvents(data.calendarEvents);
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -310,6 +329,7 @@ export default function App() {
     setActiveTopic(null);
     setTimeLeft(25 * 60);
     setIsRunning(false);
+    setCalendarEvents([]);
     setView('focus');
     localStorage.removeItem(STORAGE_KEY);
   };
@@ -390,6 +410,49 @@ export default function App() {
 
   const maxMonthlyHours = Math.max(...monthlyData.map(m => m.hours), 1);
 
+  const calendarDays = useMemo(() => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    const days = [];
+    for (let i = 0; i < firstDay; i++) {
+      days.push({ empty: true });
+    }
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
+      const dayEvents = calendarEvents.filter(e => e.date === dateStr);
+      days.push({ 
+        day: d, 
+        date: dateStr, 
+        events: dayEvents
+      });
+    }
+    return days;
+  }, [currentDate, calendarEvents]);
+
+  const addEvent = (dateStr) => {
+    const name = prompt("Nome do compromisso:");
+    if (!name || name.trim() === "") return;
+    const newEvent = {
+      id: Date.now(),
+      name: name,
+      date: dateStr,
+      color: NOTION_COLORS[Math.floor(Math.random() * NOTION_COLORS.length)].hex
+    };
+    const updated = [...calendarEvents, newEvent];
+    setCalendarEvents(updated);
+  };
+
+  const removeEvent = (eventId) => {
+    const updated = calendarEvents.filter(e => e.id !== eventId);
+    setCalendarEvents(updated);
+  };
+
+  const monthName = currentDate.toLocaleString('pt-PT', { month: 'long' });
+
   return (
     <div className={`flex flex-col h-screen transition-colors duration-1000 ${mode === 'break' ? 'bg-zinc-950' : 'bg-black'} text-zinc-400 font-sans overflow-hidden`} onClick={initAudio}>
       <style>{`
@@ -452,6 +515,7 @@ export default function App() {
             { id: 'labels', icon: Tag, label: 'Tópicos' },
             { id: 'dashboard', icon: BarChart3, label: 'Status' },
             { id: 'goals', icon: Target, label: 'Metas' },
+            { id: 'calendar', icon: Calendar, label: 'Calendário' },
           ].map(item => (
             <button 
               key={item.id} 
@@ -849,6 +913,74 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {view === 'calendar' && (
+            <div className="animate-in fade-in duration-500 space-y-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-2xl font-semibold text-white tracking-tight capitalize">{monthName} <span className="text-zinc-600 font-normal">{currentDate.getFullYear()}</span></h2>
+                  <div className="flex bg-zinc-900/50 rounded-lg p-0.5 border border-zinc-800">
+                    <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-1.5 hover:text-white transition-colors"><ChevronLeft size={16}/></button>
+                    <button onClick={() => setCurrentDate(new Date())} className="px-3 text-[10px] font-bold uppercase border-x border-zinc-800 hover:text-white transition-colors">Hoje</button>
+                    <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))} className="p-1.5 hover:text-white transition-colors"><ChevronRight size={16}/></button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                   <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mr-2">Notion View</span>
+                   <div className="w-8 h-8 rounded-full border border-zinc-800 bg-zinc-900/50 flex items-center justify-center text-zinc-600"><MoreHorizontal size={14}/></div>
+                </div>
+              </div>
+
+              <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950/20 shadow-2xl">
+                <div className="grid grid-cols-7 bg-zinc-900/40 border-b border-zinc-800">
+                  {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map(day => (
+                    <div key={day} className="py-2 text-center text-[9px] font-bold text-zinc-500 tracking-widest">{day}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 auto-rows-[minmax(120px,auto)]">
+                  {calendarDays.map((item, idx) => {
+                    const isToday = new Date().toISOString().split('T')[0] === item.date;
+                    return (
+                      <div 
+                        key={idx} 
+                        onClick={() => !item.empty && addEvent(item.date)}
+                        className={`border-r border-b border-zinc-900 p-2 transition-colors flex flex-col gap-1 group relative ${item.empty ? 'bg-zinc-900/10' : 'hover:bg-zinc-900/30 cursor-pointer'}`}
+                      >
+                        {!item.empty && (
+                          <>
+                            <div className="flex justify-between items-start mb-1">
+                              <span className={`text-[11px] font-medium w-6 h-6 flex items-center justify-center rounded-full transition-colors ${isToday ? 'bg-white text-black font-bold' : 'text-zinc-500'}`}>
+                                {item.day}
+                              </span>
+                              <Plus size={12} className="text-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                            <div className="space-y-1">
+                              {item.events.map(event => (
+                                <div 
+                                  key={event.id}
+                                  onClick={(e) => { e.stopPropagation(); if(confirm("Remover compromisso?")) removeEvent(event.id); }}
+                                  className="text-[10px] py-1 px-2 rounded-md border truncate relative group/ev flex items-center justify-between transition-all hover:brightness-125"
+                                  style={{ 
+                                    backgroundColor: `${event.color}15`, 
+                                    borderColor: `${event.color}30`, 
+                                    color: event.color 
+                                  }}
+                                >
+                                  <span className="truncate">{event.name}</span>
+                                  <X size={10} className="opacity-0 group-ev-hover:opacity-100 transition-opacity cursor-pointer shrink-0 ml-1" />
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <p className="text-center text-[9px] text-zinc-700 uppercase font-bold tracking-[0.3em]">Clica num dia para agendar ou numa tarefa para remover</p>
             </div>
           )}
 
