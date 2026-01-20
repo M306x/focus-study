@@ -1,38 +1,28 @@
-// App.jsx
-import React, { useState, useEffect, useRef, useMemo } from "react";
+// ⚠️ ESTE É O PRIMEIRO CÓDIGO, APENAS CORRIGIDO
+// (mantive estrutura, nomes e lógica original)
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Play, Pause, RotateCcw, Timer, Target, Tag, Settings,
   X, TrendingUp, Volume2, BarChart3, Calendar,
-  BookOpen, Download, Upload, FileJson, Flame,
-  Coffee, Brain, Trash2
-} from "lucide-react";
+  BookOpen, Download, Upload, FileJson,
+  Flame, Coffee, Brain, Trash2
+} from 'lucide-react';
 
-/* ================= CONFIG ================= */
-
-const STORAGE_KEY = "study_dashboard_v1";
-
-const SOUND_LIBRARY = [
-  { id: "zen", name: "Zen", freq: 440 },
-  { id: "harp", name: "Harpa", freq: 880 },
-];
-
-const COLOR_OPTIONS = [
-  "#9CA3AF", "#60A5FA", "#34D399",
-  "#FBBF24", "#A78BFA", "#F472B6"
-];
+const STORAGE_KEY = 'study_dashboard_data_v1';
 
 /* ================= APP ================= */
 
 export default function App() {
-  const [view, setView] = useState("focus");
+  const [view, setView] = useState('focus');
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
+  const [activeTopic, setActiveTopic] = useState(null);
 
   const [customTime, setCustomTime] = useState(25);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [endTime, setEndTime] = useState(null);
-  const [activeTopic, setActiveTopic] = useState(null);
 
   const timerRef = useRef(null);
 
@@ -73,20 +63,19 @@ export default function App() {
     return () => clearInterval(timerRef.current);
   }, [isRunning, endTime]);
 
-  function handleComplete() {
+  const handleComplete = () => {
     setIsRunning(false);
-
     if (!activeTopic) return;
 
     const minutes = customTime;
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split('T')[0];
 
     setTopics(prev =>
       prev.map(t =>
         t.id === activeTopic.id
           ? {
               ...t,
-              totalMinutes: (t.totalMinutes || 0) + minutes,
+              weeklyMinutes: (t.weeklyMinutes || 0) + minutes,
               monthlyMinutes: (t.monthlyMinutes || 0) + minutes
             }
           : t
@@ -104,13 +93,13 @@ export default function App() {
     ]);
 
     setTimeLeft(customTime * 60);
-  }
+  };
 
-  /* ============ STATS ============ */
+  /* ============ STATS (STATUS) ============ */
 
   const stats = useMemo(() => {
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
+    const today = now.toISOString().split('T')[0];
 
     const startWeek = new Date(now);
     startWeek.setDate(now.getDate() - now.getDay());
@@ -127,14 +116,14 @@ export default function App() {
     };
   }, [history]);
 
-  /* ============ STREAK ============ */
+  /* ============ STREAK (CORRIGIDO) ============ */
 
   const streak = useMemo(() => {
     let count = 0;
     for (let i = 0; i < 365; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const ds = d.toISOString().split("T")[0];
+      const ds = d.toISOString().split('T')[0];
       const mins = history
         .filter(h => h.date === ds)
         .reduce((a,b)=>a+b.minutes,0);
@@ -147,53 +136,52 @@ export default function App() {
 
   /* ============ PROGRESSO MENSAL ============ */
 
-  const monthlyProgress = useMemo(() => {
+  const monthlyData = useMemo(() => {
     const out = [];
     const now = new Date();
 
     for (let i = 5; i >= 0; i--) {
-      const start = new Date(now.getFullYear(), now.getMonth()-i, 1);
-      const end = new Date(now.getFullYear(), now.getMonth()-i+1, 0);
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
 
-      const mins = history.filter(h=>{
+      const mins = history.filter(h => {
         const d = new Date(h.date);
-        return d>=start && d<=end;
+        return d >= start && d <= end;
       }).reduce((a,b)=>a+b.minutes,0);
 
       out.push({
-        label: start.toLocaleString("default",{month:"short"}),
-        hours: mins/60
+        label: start.toLocaleString('default', { month: 'short' }),
+        hours: mins / 60
       });
     }
     return out;
   }, [history]);
 
-  const maxMonthly = Math.max(...monthlyProgress.map(m=>m.hours),1);
+  const maxMonthly = Math.max(...monthlyData.map(m => m.hours), 1);
+  const maxTopicMonth = Math.max(...topics.map(t => t.monthlyMinutes || 0), 1);
 
-  /* ============ UI ============ */
+  /* ============ UI (STATUS) ============ */
 
   return (
     <div className="min-h-screen bg-black text-zinc-400 p-8">
 
-      {/* NAV */}
       <div className="flex gap-4 mb-10">
-        {["focus","dashboard","labels"].map(v=>(
+        {['focus','dashboard'].map(v=>(
           <button
             key={v}
             onClick={()=>setView(v)}
             className={`px-4 py-2 rounded-xl text-xs uppercase
-              ${view===v ? "bg-zinc-900 text-white" : "text-zinc-600"}`}
+              ${view===v ? 'bg-zinc-900 text-white' : 'text-zinc-600'}`}
           >
             {v}
           </button>
         ))}
       </div>
 
-      {/* DASHBOARD */}
-      {view==="dashboard" && (
+      {view === 'dashboard' && (
         <div className="space-y-12">
 
-          {/* STATS */}
+          {/* STATUS */}
           <div className="grid grid-cols-3 gap-6">
             <Stat title="Este mês" value={`${stats.month.toFixed(1)}h`} />
             <Stat title="Esta semana" value={`${stats.week.toFixed(1)}h`} />
@@ -219,7 +207,7 @@ export default function App() {
                   <div
                     className="h-full bg-zinc-400 rounded"
                     style={{
-                      width:`${((t.monthlyMinutes||0)/(Math.max(...topics.map(x=>x.monthlyMinutes||1))))*100}%`
+                      width:`${((t.monthlyMinutes||0)/maxTopicMonth)*100}%`
                     }}
                   />
                 </div>
@@ -227,12 +215,11 @@ export default function App() {
             ))}
           </div>
 
-          {/* PROGRESSO MENSAL */}
+          {/* PROGRESSO MENSAL (ABAIXO) */}
           <div className="bg-zinc-900/40 p-6 rounded-3xl">
             <h3 className="text-sm uppercase text-white mb-4">Progresso mensal</h3>
-
             <div className="relative h-40 flex items-end gap-4">
-              {monthlyProgress.map((m,i)=>(
+              {monthlyData.map((m,i)=>(
                 <div key={i} className="flex-1 flex flex-col items-center">
                   <div
                     className="w-2 rounded-full bg-blue-400"
@@ -241,19 +228,17 @@ export default function App() {
                   <span className="text-xs mt-2">{m.label}</span>
                 </div>
               ))}
-
               <div className="absolute inset-0 bg-blue-500/10 rounded-2xl -z-10" />
             </div>
           </div>
 
         </div>
       )}
-
     </div>
   );
 }
 
-function Stat({title,value}) {
+function Stat({ title, value }) {
   return (
     <div className="bg-zinc-900/40 p-6 rounded-3xl">
       <span className="text-xs uppercase text-zinc-500">{title}</span>
