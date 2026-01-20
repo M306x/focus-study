@@ -18,7 +18,10 @@ const SOUND_LIBRARY = [
   { id: 'pulse', name: 'Pulso Relaxante', type: 'sine', frequency: 523.25, duration: 1.2, detune: 0 }
 ];
 
-const COLOR_OPTIONS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#FFFFFF', '#4ADE80', '#A855F7', '#F97316'];
+const COLOR_OPTIONS = [
+  '#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#FFFFFF', '#4ADE80', '#A855F7', '#F97316',
+  '#22C55E', '#EAB308', '#6366F1', '#F472B6', '#14B8A6', '#A78BFA', '#FBBF24', '#34D399', '#DB2777', '#60A5FA', '#E879F9' // Mais cores adicionadas
+];
 
 const STORAGE_KEY = 'study_dashboard_data_v1';
 
@@ -29,10 +32,10 @@ export default function App() {
   const [alarmDuration, setAlarmDuration] = useState(5);
   const [infiniteAlarm, setInfiniteAlarm] = useState(false);
   const [dailyGoalHours, setDailyGoalHours] = useState(7);
-  const [waterAlertInterval, setWaterAlertInterval] = useState(1); // Novo: Intervalo em horas para alerta de água
-  const [waterSoundSameAsAlarm, setWaterSoundSameAsAlarm] = useState(true); // Novo: Usar mesmo som do alarme
-  const [selectedWaterSound, setSelectedWaterSound] = useState(SOUND_LIBRARY[0]); // Novo: Som personalizado para água
-  const [waterAlertDuration, setWaterAlertDuration] = useState(5); // Novo: Duração do alerta de água
+  const [waterAlertInterval, setWaterAlertInterval] = useState(1);
+  const [waterSoundSameAsAlarm, setWaterSoundSameAsAlarm] = useState(true);
+  const [selectedWaterSound, setSelectedWaterSound] = useState(SOUND_LIBRARY[0]);
+  const [waterAlertDuration, setWaterAlertDuration] = useState(5);
   
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
@@ -43,7 +46,7 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
-  const [lastWaterAlertTime, setLastWaterAlertTime] = useState(null); // Novo: Último tempo de alerta de água
+  const [lastWaterAlertTime, setLastWaterAlertTime] = useState(null);
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -52,6 +55,7 @@ export default function App() {
   const [modalType, setModalType] = useState(null); 
   const [editingTopic, setEditingTopic] = useState(null);
   const [tempInputValue, setTempInputValue] = useState("");
+  const [calendarDate, setCalendarDate] = useState(new Date()); // Novo: Data atual para calendário
 
   // --- PERSISTÊNCIA: CARREGAR DADOS DO LOCALSTORAGE ---
   useEffect(() => {
@@ -206,7 +210,7 @@ export default function App() {
         const remaining = Math.max(0, Math.round((endTime - now) / 1000));
         setTimeLeft(remaining);
 
-        // Novo: Verificar alerta de água
+        // Verificar alerta de água apenas se ativado
         if (mode === 'focus' && waterAlertInterval > 0 && lastWaterAlertTime) {
           const elapsedSinceLast = (now - lastWaterAlertTime) / (1000 * 60 * 60); // Em horas
           if (elapsedSinceLast >= waterAlertInterval) {
@@ -379,7 +383,7 @@ export default function App() {
     };
   }, [history]);
 
-  const monthlyTotalHours = statsByPeriod.month; // Novo: Total estudado só do mês
+  const monthlyTotalHours = statsByPeriod.month;
 
   const calendarData = useMemo(() => {
     const days = [];
@@ -397,9 +401,9 @@ export default function App() {
   const currentStreak = useMemo(() => {
     let streak = 0;
     const goalMins = 60;
-    // Inverter para começar de hoje para trás
-    for (let i = calendarData.length - 1; i >= 0; i--) {
-      if (calendarData[i].minutes >= goalMins) {
+    // Começar de hoje (último item) para trás
+    for (let i = 0; i < calendarData.length; i++) {
+      if (calendarData[calendarData.length - 1 - i].minutes >= goalMins) {
         streak++;
       } else {
         break;
@@ -426,7 +430,7 @@ export default function App() {
 
   const maxMonthlyHours = Math.max(...monthlyData.map(m => m.hours), 1);
 
-  const monthlyTopicMins = useMemo(() => { // Novo: Minutos por tópico no mês atual
+  const monthlyTopicMins = useMemo(() => {
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     return topics.map(t => {
       const mins = history.filter(h => h.topicId === t.id && new Date(h.date) >= startOfMonth).reduce((acc, curr) => acc + curr.minutes, 0);
@@ -435,6 +439,31 @@ export default function App() {
   }, [topics, history]);
 
   const maxMonthlyTopicMins = Math.max(...monthlyTopicMins.map(t => t.monthlyMinutes || 0), 1);
+
+  // Novo: Dados para calendário
+  const calendarMonthData = useMemo(() => {
+    const firstDay = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
+    const lastDay = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0);
+    const days = [];
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const date = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), d);
+      const dateStr = date.toISOString().split('T')[0];
+      const mins = history.filter(h => h.date === dateStr).reduce((acc, curr) => acc + curr.minutes, 0);
+      const topicDetails = topics.map(t => ({
+        name: t.name,
+        color: t.color,
+        mins: history.filter(h => h.topicId === t.id && h.date === dateStr).reduce((acc, curr) => acc + curr.minutes, 0)
+      })).filter(td => td.mins > 0);
+      days.push({ date: d, minutes: mins, hours: (mins / 60).toFixed(1), topicDetails });
+    }
+    return { firstDay, days };
+  }, [calendarDate, history, topics]);
+
+  const changeCalendarMonth = (delta) => {
+    const newDate = new Date(calendarDate);
+    newDate.setMonth(calendarDate.getMonth() + delta);
+    setCalendarDate(newDate);
+  };
 
   return (
     <div className={`flex flex-col h-screen transition-colors duration-1000 ${mode === 'break' ? 'bg-zinc-950' : 'bg-black'} text-zinc-400 font-sans overflow-hidden`} onClick={initAudio}>
@@ -461,6 +490,32 @@ export default function App() {
         }
         .bar-grow {
           animation: barGrow 1s ease-out forwards;
+        }
+        .calendar-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 8px;
+        }
+        .calendar-day {
+          aspect-ratio: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          font-size: 12px;
+          transition: background 0.3s;
+        }
+        .calendar-day.has-study {
+          background: linear-gradient(135deg, #10B981 0%, #3B82F6 100%);
+          color: white;
+        }
+        .calendar-day:hover {
+          opacity: 0.8;
+          cursor: pointer;
+        }
+        .calendar-details {
+          max-height: 200px;
+          overflow-y: auto;
         }
       `}</style>
 
@@ -499,6 +554,7 @@ export default function App() {
             { id: 'labels', icon: Tag, label: 'Tópicos' },
             { id: 'dashboard', icon: BarChart3, label: 'Status' },
             { id: 'goals', icon: Target, label: 'Metas' },
+            { id: 'calendar', icon: Calendar, label: 'Calendário' } // Novo: Aba de calendário
           ].map(item => (
             <button 
               key={item.id} 
@@ -624,16 +680,12 @@ export default function App() {
                <h2 className="text-2xl font-bold text-white mb-8 uppercase text-xs tracking-widest">Tópicos e Cores</h2>
                <div className="space-y-3 mb-8">
                  {topics.map(t => (
-                   <div key={t.id} className="flex items-center justify-between p-4 bg-zinc-900/30 border border-zinc-900 rounded-2xl group transition-all hover:bg-zinc-900/50">
+                   <div key={t.id} className="flex items-center justify-between p-4 bg-zinc-900/20 border border-zinc-900 rounded-2xl group">
                      <div className="flex items-center gap-4">
-                       <input 
-                         type="color"
-                         value={t.color}
-                         onChange={(e) => {
-                           const updated = topics.map(x => x.id === t.id ? {...x, color: e.target.value} : x);
-                           setTopics(updated);
-                         }}
-                         className="w-5 h-5 rounded-full cursor-pointer transition-transform hover:scale-110"
+                       <button 
+                         onClick={() => setEditingTopic(t)}
+                         className="w-5 h-5 rounded-full ring-2 ring-zinc-800 ring-offset-2 ring-offset-black transition-transform hover:scale-110" 
+                         style={{ backgroundColor: t.color }} 
                        />
                        <span className="text-white text-sm font-bold uppercase tracking-wide">{t.name}</span>
                      </div>
@@ -824,6 +876,40 @@ export default function App() {
             </div>
           )}
 
+          {view === 'calendar' && ( // Novo: View de calendário
+            <div className="max-w-xl mx-auto space-y-6">
+              <div className="flex justify-between items-center">
+                <button onClick={() => changeCalendarMonth(-1)} className="text-zinc-400 hover:text-white">
+                  <ChevronRight size={20} className="rotate-180" />
+                </button>
+                <h2 className="text-white font-bold text-lg uppercase tracking-widest">
+                  {calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </h2>
+                <button onClick={() => changeCalendarMonth(1)} className="text-zinc-400 hover:text-white">
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+              <div className="grid grid-cols-7 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">
+                <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+              </div>
+              <div className="calendar-grid">
+                {Array.from({ length: calendarMonthData.firstDay.getDay() }).map((_, i) => (
+                  <div key={`empty-${i}`} className="calendar-day bg-transparent" />
+                ))}
+                {calendarMonthData.days.map((day, i) => (
+                  <div 
+                    key={i} 
+                    className={`calendar-day ${day.minutes > 0 ? 'has-study' : 'bg-zinc-900/20'}`}
+                    title={`Total: ${day.hours}h`}
+                    onClick={() => setModalType({ type: 'dayDetails', data: day })}
+                  >
+                    {day.date}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {view === 'goals' && (
             <div className="max-w-2xl mx-auto space-y-6">
               <h2 className="text-2xl font-bold text-white uppercase text-xs tracking-widest mb-8">Objetivos Semanais</h2>
@@ -1008,7 +1094,6 @@ export default function App() {
                 </div>
               </section>
 
-              {/* Novo: Alerta de Água */}
               <section>
                 <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
                   <Droplet size={16} /> Alerta de Água
@@ -1017,7 +1102,7 @@ export default function App() {
                   <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
                     <div className="flex flex-col">
                       <span className="text-white text-xs font-bold uppercase tracking-widest">Intervalo</span>
-                      <span className="text-zinc-600 text-[9px] font-bold uppercase">Horas entre alertas</span>
+                      <span className="text-zinc-600 text-[9px] font-bold uppercase">Horas entre alertas (0 desativa)</span>
                     </div>
                     <input 
                       type="number" 
@@ -1137,6 +1222,25 @@ export default function App() {
               ))}
             </div>
             <button onClick={() => setEditingTopic(null)} className="w-full py-4 text-zinc-600 font-bold text-[10px] uppercase tracking-widest">Fechar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Novo: Modal de detalhes do dia no calendário */}
+      {modalType?.type === 'dayDetails' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm px-6">
+          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2rem] w-full max-w-xs text-center">
+            <h3 className="text-white font-bold mb-6 uppercase text-[10px] tracking-widest opacity-40">Detalhes do Dia {modalType.data.date}</h3>
+            <p className="text-white mb-4">Total: {modalType.data.hours}h</p>
+            <div className="calendar-details custom-scrollbar">
+              {modalType.data.topicDetails.map((td, i) => (
+                <div key={i} className="flex justify-between text-[10px] mb-2">
+                  <span style={{ color: td.color }}>{td.name}</span>
+                  <span>{(td.mins / 60).toFixed(1)}h</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setModalType(null)} className="mt-6 w-full py-4 bg-white text-black rounded-2xl font-bold text-[10px] uppercase tracking-widest">Fechar</button>
           </div>
         </div>
       )}
