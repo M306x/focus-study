@@ -53,13 +53,7 @@ export default function App() {
     if (savedData) {
       try {
         const data = JSON.parse(savedData);
-        if (data.topics) {
-          setTopics(data.topics.map(t => ({
-            ...t,
-            weeklyMinutes: t.weeklyMinutes || 0,
-            monthlyMinutes: t.monthlyMinutes || 0
-          })));
-        }
+        if (data.topics) setTopics(data.topics);
         if (data.history) setHistory(data.history);
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
@@ -87,13 +81,13 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
   }, [topics, history, alarmDuration, infiniteAlarm, dailyGoalHours, selectedSound]);
 
-  // --- ATUALIZAÇÃO SEMANAL DE weeklyMinutes ---
+  // --- RESET SEMANAL AUTOMÁTICO DE weeklyMinutes ---
   useEffect(() => {
     const updateWeeklyMinutes = () => {
       const now = new Date();
       const startOfCurrentWeek = new Date(now);
-      startOfCurrentWeek.setDate(now.getDate() - (now.getDay() + 1) % 7);
-      startOfCurrentWeek.setHours(0, 0, 0, 0);
+      startOfCurrentWeek.setDate(now.getDate() - (now.getDay() + 1) % 7); // Semana começa no sábado (0=dom, 6=sáb)
+      startOfCurrentWeek.setHours(23, 0, 0, 0); // Reset no sábado às 23h
 
       setTopics(prevTopics =>
         prevTopics.map(topic => {
@@ -108,35 +102,17 @@ export default function App() {
 
     updateWeeklyMinutes();
 
-    const interval = setInterval(updateWeeklyMinutes, 60000);
-    return () => clearInterval(interval);
-  }, [history]);
-
-  // --- ATUALIZAÇÃO MENSAL DE monthlyMinutes ---
-  useEffect(() => {
-    const updateMonthlyMinutes = () => {
+    const interval = setInterval(() => {
       const now = new Date();
-      const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      startOfCurrentMonth.setHours(0, 0, 0, 0);
+      if (now.getDay() === 6 && now.getHours() === 23 && now.getMinutes() === 0) {
+        updateWeeklyMinutes();
+      }
+    }, 60000); // Checa a cada minuto
 
-      setTopics(prevTopics =>
-        prevTopics.map(topic => {
-          const monthlyMins = history
-            .filter(h => h.topicId === topic.id && new Date(h.date) >= startOfCurrentMonth)
-            .reduce((sum, h) => sum + h.minutes, 0);
-
-          return { ...topic, monthlyMinutes: monthlyMins };
-        })
-      );
-    };
-
-    updateMonthlyMinutes();
-
-    const interval = setInterval(updateMonthlyMinutes, 60000);
     return () => clearInterval(interval);
   }, [history]);
 
-  // --- EXPORTAR / IMPORTAR ---
+  // --- EXPORTAR DADOS (JSON) ---
   const handleExport = () => {
     const dataToExport = {
       topics,
@@ -159,6 +135,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  // --- IMPORTAR DADOS (JSON) ---
   const handleImport = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -167,13 +144,7 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target.result);
-        if (data.topics) {
-          setTopics(data.topics.map(t => ({
-            ...t,
-            weeklyMinutes: t.weeklyMinutes || 0,
-            monthlyMinutes: t.monthlyMinutes || 0
-          })));
-        }
+        if (data.topics) setTopics(data.topics);
         if (data.history) setHistory(data.history);
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
@@ -187,7 +158,7 @@ export default function App() {
       }
     };
     reader.readAsText(file);
-    event.target.value = '';
+    event.target.value = ''; // Reset input
   };
 
   const initAudio = () => {
@@ -255,7 +226,7 @@ export default function App() {
 
   const handleComplete = () => {
     setIsRunning(false);
-    initAudio();
+    initAudio(); // Garantir que audio esteja inicializado antes do som
     setIsAlarmPlaying(true);
     playSound(selectedSound, infiniteAlarm ? 'infinite' : alarmDuration);
 
@@ -268,7 +239,7 @@ export default function App() {
           ? { 
               ...t, 
               weeklyMinutes: (t.weeklyMinutes || 0) + spentMin,
-              monthlyMinutes: (t.monthlyMinutes || 0) + spentMin 
+              totalMinutes: (t.totalMinutes || 0) + spentMin 
             } 
           : t
       );
@@ -309,7 +280,7 @@ export default function App() {
             ? { 
                 ...t, 
                 weeklyMinutes: (t.weeklyMinutes || 0) + spentMin,
-                monthlyMinutes: (t.monthlyMinutes || 0) + spentMin 
+                totalMinutes: (t.totalMinutes || 0) + spentMin 
               } 
             : t
         );
@@ -351,6 +322,11 @@ export default function App() {
     return `${hDisplay}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const totalMinutes = topics.reduce((acc, t) => acc + (t.totalMinutes || 0), 0);
+  const totalHours = (totalMinutes / 60).toFixed(1);
+  const avgSession = history.length > 0 ? (totalMinutes / history.length).toFixed(0) : 0;
+  const maxMins = Math.max(...topics.map(t => t.totalMinutes || 0), 1);
+
   const statsByPeriod = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -385,10 +361,9 @@ export default function App() {
 
   const currentStreak = useMemo(() => {
     let streak = 0;
-    const minMinutesForStreak = 60; // 1 hora mínima
-    
-    for (let i = calendarData.length - 1; i >= 0; i--) {
-      if (calendarData[i].minutes >= minMinutesForStreak) {
+    const goalMins = 60;
+    for (let i = 0; i < calendarData.length; i++) {
+      if (calendarData[i].minutes >= goalMins) {
         streak++;
       } else {
         break;
@@ -413,8 +388,7 @@ export default function App() {
     return months;
   }, [history]);
 
-  const maxMonthlyHours = Math.max(...monthlyData.map(m => parseFloat(m.hours)), 1);
-  const maxMonthlyTopicMins = Math.max(...topics.map(t => t.monthlyMinutes || 0), 1);
+  const maxMonthlyHours = Math.max(...monthlyData.map(m => m.hours), 1);
 
   return (
     <div className={`flex flex-col h-screen transition-colors duration-1000 ${mode === 'break' ? 'bg-zinc-950' : 'bg-black'} text-zinc-400 font-sans overflow-hidden`} onClick={initAudio}>
@@ -596,51 +570,43 @@ export default function App() {
           )}
 
           {view === 'labels' && (
-            <div className="max-w-xl mx-auto">
-              <h2 className="text-2xl font-bold text-white mb-8 uppercase text-xs tracking-widest">Tópicos e Cores</h2>
-              <div className="space-y-3 mb-8">
-                {topics.map(t => (
-                  <div key={t.id} className="flex items-center justify-between p-4 bg-zinc-900/20 border border-zinc-900 rounded-2xl group">
-                    <div className="flex items-center gap-4">
-                      <button 
-                        onClick={() => setEditingTopic(t)}
-                        className="w-5 h-5 rounded-full ring-2 ring-zinc-800 ring-offset-2 ring-offset-black transition-transform hover:scale-110" 
-                        style={{ backgroundColor: t.color }} 
-                      />
-                      <span className="text-white text-sm font-bold uppercase tracking-wide">{t.name}</span>
-                    </div>
-                    <button onClick={() => {
-                       const updated = topics.filter(x => x.id !== t.id);
-                       setTopics(updated);
-                    }} className="text-zinc-800 hover:text-red-500 transition-colors">
-                      <X size={18} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="NOVO TÓPICO..."
-                  className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 text-white outline-none focus:border-zinc-600 text-[10px] font-bold tracking-widest uppercase"
-                  onKeyDown={(e) => { 
-                    if(e.key === 'Enter' && e.target.value) { 
-                      const updated = [...topics, { 
-                        id: Date.now(), 
-                        name: e.target.value, 
-                        color: COLOR_OPTIONS[Math.floor(Math.random()*COLOR_OPTIONS.length)], 
-                        weeklyMinutes: 0, 
-                        monthlyMinutes: 0,
-                        goalHours: 10, 
-                        hasGoal: true 
-                      }];
-                      setTopics(updated); 
-                      e.target.value = ''; 
-                    }
-                  }}
-                />
-              </div>
-            </div>
+             <div className="max-w-xl mx-auto">
+               <h2 className="text-2xl font-bold text-white mb-8 uppercase text-xs tracking-widest">Tópicos e Cores</h2>
+               <div className="space-y-3 mb-8">
+                 {topics.map(t => (
+                   <div key={t.id} className="flex items-center justify-between p-4 bg-zinc-900/20 border border-zinc-900 rounded-2xl group">
+                     <div className="flex items-center gap-4">
+                       <button 
+                         onClick={() => setEditingTopic(t)}
+                         className="w-5 h-5 rounded-full ring-2 ring-zinc-800 ring-offset-2 ring-offset-black transition-transform hover:scale-110" 
+                         style={{ backgroundColor: t.color }} 
+                       />
+                       <span className="text-white text-sm font-bold uppercase tracking-wide">{t.name}</span>
+                     </div>
+                     <button onClick={() => {
+                        const updated = topics.filter(x => x.id !== t.id);
+                        setTopics(updated);
+                     }} className="text-zinc-800 hover:text-red-500 transition-colors">
+                       <X size={18} />
+                     </button>
+                   </div>
+                 ))}
+               </div>
+               <div className="flex gap-2">
+                 <input 
+                   type="text" 
+                   placeholder="NOVO TÓPICO..."
+                   className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 text-white outline-none focus:border-zinc-600 text-[10px] font-bold tracking-widest uppercase"
+                   onKeyDown={(e) => { 
+                     if(e.key === 'Enter' && e.target.value) { 
+                       const updated = [...topics, { id: Date.now(), name: e.target.value, color: COLOR_OPTIONS[Math.floor(Math.random()*COLOR_OPTIONS.length)], weeklyMinutes: 0, totalMinutes: 0, goalHours: 10, hasGoal: true }];
+                       setTopics(updated); 
+                       e.target.value = ''; 
+                     }
+                   }}
+                 />
+               </div>
+             </div>
           )}
 
           {view === 'dashboard' && (
@@ -652,35 +618,54 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-zinc-900/30 border border-zinc-900 p-12 rounded-[2.5rem] flex flex-col justify-between">
-                  <div className="w-16 h-16 bg-emerald-500/10 rounded-3xl flex items-center justify-center text-emerald-500 mb-8">
-                    <Activity size={32} />
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
+                    <Clock size={24} />
                   </div>
-                  <div className="space-y-8">
-                    <div className="flex justify-between items-end">
-                      <span className="text-[14px] font-bold text-zinc-500 uppercase tracking-widest">Este Mês</span>
-                      <h3 className="text-7xl font-bold text-white tabular-nums leading-none">{statsByPeriod.month}h</h3>
+                  <div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Total Estudado</span>
+                    <h3 className="text-5xl font-bold text-white tabular-nums">{totalHours}h</h3>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500">
+                    <Zap size={24} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Média/Sessão</span>
+                    <h3 className="text-5xl font-bold text-white tabular-nums">{avgSession}m</h3>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
+                    <Activity size={24} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
+                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Este Mês</span>
+                      <span className="text-xs font-bold text-white">{statsByPeriod.month}h</span>
                     </div>
-                    <div className="flex justify-between items-end border-t border-zinc-800/50 pt-6">
-                      <span className="text-[12px] font-bold text-zinc-600 uppercase tracking-widest">Esta Semana</span>
-                      <span className="text-5xl font-bold text-white tabular-nums">{statsByPeriod.week}h</span>
+                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
+                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Esta Semana</span>
+                      <span className="text-xs font-bold text-white">{statsByPeriod.week}h</span>
                     </div>
-                    <div className="flex justify-between items-end border-t border-zinc-800/50 pt-6">
-                      <span className="text-[12px] font-bold text-zinc-600 uppercase tracking-widest">Hoje</span>
-                      <span className="text-5xl font-bold text-emerald-500 tabular-nums">{statsByPeriod.day}h</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Hoje</span>
+                      <span className="text-xs font-bold text-emerald-500">{statsByPeriod.day}h</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-zinc-900/30 border border-zinc-900 p-12 rounded-[2.5rem] flex flex-col justify-between">
-                  <div className="w-16 h-16 bg-orange-500/10 rounded-3xl flex items-center justify-center text-orange-500">
-                    <Flame size={32} />
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-500">
+                    <Flame size={24} />
                   </div>
                   <div>
-                    <span className="text-[14px] font-bold text-zinc-500 uppercase tracking-widest block mb-4">Streak Atual</span>
-                    <h3 className="text-8xl font-bold text-white tabular-nums leading-none">{currentStreak}</h3>
-                    <span className="text-[12px] text-zinc-600 uppercase tracking-widest">dias consecutivos (≥1h)</span>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Streak Atual</span>
+                    <h3 className="text-5xl font-bold text-white tabular-nums">{currentStreak} dias</h3>
                   </div>
                 </div>
               </div>
@@ -696,7 +681,7 @@ export default function App() {
                     const hasStudy = day.minutes > 0;
                     const goalMins = dailyGoalHours * 60;
                     let intensity = 0.04;
-                    let baseColor = '16, 185, 129';
+                    let baseColor = '16, 185, 129'; // Verde
 
                     if (hasStudy) {
                       if (day.minutes <= 15) intensity = 0.15;
@@ -708,7 +693,7 @@ export default function App() {
                         const progress = Math.min(day.minutes / goalMins, 1);
                         intensity = progress * 0.95;
                         if (day.minutes >= goalMins) {
-                          baseColor = '168, 85, 247';
+                          baseColor = '168, 85, 247'; // Roxo
                         }
                       }
                     }
@@ -735,47 +720,14 @@ export default function App() {
               <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-12">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <BarChart3 size={18} className="text-zinc-600" /> Horas por Tópico Este Mês
-                  </h3>
-                </div>
-                <div className="flex items-end justify-between h-48 gap-4 px-4">
-                  {topics.length === 0 ? (
-                    <div className="w-full flex items-center justify-center text-zinc-800 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
-                  ) : (
-                    topics.map(t => {
-                      const height = ((t.monthlyMinutes || 0) / maxMonthlyTopicMins) * 100;
-                      return (
-                        <div key={t.id} className="flex-1 flex flex-col items-center group">
-                          <div className="relative w-full flex justify-center flex-1">
-                             <div 
-                               className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80"
-                               style={{ height: `${height}%`, backgroundColor: t.color, boxShadow: `0 0 40px -10px ${t.color}44` }}
-                             />
-                          </div>
-                          <div className="mt-4 flex flex-col items-center">
-                            <span className="text-[10px] font-bold uppercase tracking-tighter text-zinc-400">
-                              {((t.monthlyMinutes || 0) / 60).toFixed(1)}h
-                            </span>
-                            <span className="text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{t.name}</span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
-                <div className="flex justify-between items-center mb-12">
-                  <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
                     <BarChart2 size={18} className="text-zinc-600" /> Progresso Mensal
                   </h3>
                 </div>
                 <div className="flex items-end justify-between h-48 gap-4 px-4">
                   {monthlyData.map((m, i) => {
-                    const height = (parseFloat(m.hours) / maxMonthlyHours) * 100;
-                    const prevHours = i < monthlyData.length - 1 ? parseFloat(monthlyData[i + 1].hours) : parseFloat(m.hours);
-                    const diff = parseFloat(m.hours) - prevHours;
+                    const height = (m.hours / maxMonthlyHours) * 100;
+                    const prevHours = i < monthlyData.length - 1 ? monthlyData[i + 1].hours : m.hours;
+                    const diff = m.hours - prevHours;
                     const trendColor = diff > 0 ? 'text-emerald-500' : diff < 0 ? 'text-red-500' : 'text-zinc-500';
                     const trendIcon = diff > 0 ? ArrowUp : diff < 0 ? ArrowDown : null;
 
@@ -791,10 +743,37 @@ export default function App() {
                           <span className="text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{m.month}</span>
                           {trendIcon && <trendIcon size={10} className={trendColor} />}
                         </div>
-                        <span className="text-[10px] font-bold text-zinc-400 mt-1">{m.hours}h</span>
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
+                <div className="flex justify-between items-center mb-12">
+                  <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
+                    <BarChart3 size={18} className="text-zinc-600" /> Horas por Tópico
+                  </h3>
+                </div>
+                <div className="flex items-end justify-between h-48 gap-4 px-4">
+                  {topics.length === 0 ? (
+                    <div className="w-full flex items-center justify-center text-zinc-800 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
+                  ) : (
+                    topics.map(t => {
+                      const height = ((t.totalMinutes || 0) / maxMins) * 100;
+                      return (
+                        <div key={t.id} className="flex-1 flex flex-col items-center group">
+                          <div className="relative w-full flex justify-center flex-1">
+                             <div 
+                               className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80"
+                               style={{ height: `${height}%`, backgroundColor: t.color, boxShadow: `0 0 40px -10px ${t.color}44` }}
+                             />
+                          </div>
+                          <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{t.name}</span>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
@@ -875,6 +854,7 @@ export default function App() {
 
           {view === 'settings' && (
             <div className="max-w-md mx-auto space-y-12">
+              {/* BACKUP DE DADOS */}
               <section>
                 <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
                   <FileJson size={16} /> Backup de Dados
@@ -1002,10 +982,7 @@ export default function App() {
           <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2rem] w-full max-w-xs text-center">
             <h3 className="text-white font-bold mb-6 uppercase text-[10px] tracking-widest opacity-40">Definir Minutos</h3>
             <input 
-              autoFocus 
-              type="number" 
-              value={tempInputValue} 
-              onChange={(e) => setTempInputValue(e.target.value)}
+              autoFocus type="number" value={tempInputValue} onChange={(e) => setTempInputValue(e.target.value)}
               className="w-full bg-black border border-zinc-800 rounded-2xl p-6 text-white mb-6 text-center outline-none font-bold text-5xl tracking-tighter"
             />
             <div className="flex gap-3">
@@ -1013,10 +990,7 @@ export default function App() {
               <button 
                 onClick={() => {
                   const val = parseInt(tempInputValue);
-                  if(!isNaN(val) && val > 0) { 
-                    setCustomTime(val); 
-                    setTimeLeft(val * 60); 
-                  }
+                  if(!isNaN(val) && val > 0) { setCustomTime(val); setTimeLeft(val * 60); }
                   setModalType(null);
                 }}
                 className="flex-1 py-4 bg-white text-black rounded-2xl font-bold text-[10px] uppercase tracking-widest"
