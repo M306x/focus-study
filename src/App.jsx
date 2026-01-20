@@ -54,7 +54,6 @@ export default function App() {
       try {
         const data = JSON.parse(savedData);
         if (data.topics) {
-          // Garantir compatibilidade: adicionar monthlyMinutes se não existir
           setTopics(data.topics.map(t => ({
             ...t,
             weeklyMinutes: t.weeklyMinutes || 0,
@@ -388,7 +387,6 @@ export default function App() {
     let streak = 0;
     const minMinutesForStreak = 60; // 1 hora mínima
     
-    // Começar do dia mais recente (índice final) para trás
     for (let i = calendarData.length - 1; i >= 0; i--) {
       if (calendarData[i].minutes >= minMinutesForStreak) {
         streak++;
@@ -501,7 +499,6 @@ export default function App() {
         <div className="p-8 max-w-5xl mx-auto pb-24">
           
           {view === 'focus' && (
-            // ... (mesmo código de foco, sem alterações)
             <div className="flex flex-col items-center justify-center pt-8">
               <div className="flex flex-wrap justify-center gap-2 bg-zinc-900/40 p-1.5 rounded-2xl mb-12 border border-zinc-800/50">
                 {topics.length === 0 ? (
@@ -655,9 +652,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Cards principais: apenas Período (expandido) e Streak */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Card expandido de Este Mês / Esta Semana / Hoje */}
                 <div className="bg-zinc-900/30 border border-zinc-900 p-12 rounded-[2.5rem] flex flex-col justify-between">
                   <div className="w-16 h-16 bg-emerald-500/10 rounded-3xl flex items-center justify-center text-emerald-500 mb-8">
                     <Activity size={32} />
@@ -678,7 +673,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Card Streak */}
                 <div className="bg-zinc-900/30 border border-zinc-900 p-12 rounded-[2.5rem] flex flex-col justify-between">
                   <div className="w-16 h-16 bg-orange-500/10 rounded-3xl flex items-center justify-center text-orange-500">
                     <Flame size={32} />
@@ -691,7 +685,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Consistência Diária */}
               <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
@@ -739,7 +732,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Horas por Tópico (agora mensal) */}
               <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-12">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
@@ -773,7 +765,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Progresso Mensal (movido para depois de Horas por Tópico) */}
               <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-12">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
@@ -809,9 +800,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ... resto do código (goals, settings, modais) permanece igual ... */}
           {view === 'goals' && (
-            // (código original de goals, sem alterações)
             <div className="max-w-2xl mx-auto space-y-6">
               <h2 className="text-2xl font-bold text-white uppercase text-xs tracking-widest mb-8">Objetivos Semanais</h2>
               {topics.length === 0 && <div className="text-center py-20 border border-dashed border-zinc-900 rounded-3xl text-zinc-800 text-[10px] font-black uppercase tracking-widest">Crie tópicos primeiro</div>}
@@ -885,22 +874,183 @@ export default function App() {
           )}
 
           {view === 'settings' && (
-            // (código original de settings, sem alterações)
             <div className="max-w-md mx-auto space-y-12">
-              {/* ... todo o código de settings ... */}
+              <section>
+                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                  <FileJson size={16} /> Backup de Dados
+                </h2>
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={handleExport}
+                    className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-500 transition-all text-zinc-400 hover:text-white"
+                  >
+                    <Download size={20} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Exportar</span>
+                  </button>
+                  <button 
+                    onClick={() => fileInputRef.current.click()}
+                    className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-500 transition-all text-zinc-400 hover:text-white"
+                  >
+                    <Upload size={20} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Importar</span>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept=".json" 
+                      onChange={handleImport}
+                    />
+                  </button>
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                  <Volume2 size={16} /> Som do Alerta
+                </h2>
+                <div className="grid gap-2">
+                  {SOUND_LIBRARY.map(sound => (
+                    <button 
+                      key={sound.id}
+                      onClick={() => { setSelectedSound(sound); playSound(sound, 2); }}
+                      className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${selectedSound.id === sound.id ? 'bg-zinc-900 border-zinc-600 text-white shadow-xl' : 'bg-transparent border-zinc-900 text-zinc-700 hover:border-zinc-800'}`}
+                    >
+                      <span className="text-[10px] font-bold uppercase tracking-widest">{sound.name}</span>
+                      <Volume2 size={14} className={selectedSound.id === sound.id ? "text-white" : "text-zinc-800"} />
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                  <BellRing size={16} /> Duração do Alarme
+                </h2>
+                <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-white text-xs font-bold uppercase tracking-widest">Tempo de Toque</span>
+                    <span className="text-zinc-600 text-[9px] font-bold uppercase">Segundos após o término</span>
+                  </div>
+                  <input 
+                    type="number" 
+                    value={alarmDuration}
+                    onChange={(e) => {
+                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                        setAlarmDuration(val);
+                    }}
+                    className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
+                  />
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                  <BellRing size={16} /> Alarme Contínuo
+                </h2>
+                <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-white text-xs font-bold uppercase tracking-widest">Toque Indefinido</span>
+                    <span className="text-zinc-600 text-[9px] font-bold uppercase">Até parar manualmente</span>
+                  </div>
+                  <button 
+                    onClick={() => setInfiniteAlarm(!infiniteAlarm)}
+                    className={`w-12 h-6 rounded-full p-1 transition-colors ${infiniteAlarm ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${infiniteAlarm ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                  <Target size={16} /> Meta Diária
+                </h2>
+                <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-white text-xs font-bold uppercase tracking-widest">Horas por Dia</span>
+                    <span className="text-zinc-600 text-[9px] font-bold uppercase">Defina 0 para desativar</span>
+                  </div>
+                  <input 
+                    type="number" 
+                    value={dailyGoalHours}
+                    min={0}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value) || 0);
+                      setDailyGoalHours(val);
+                    }}
+                    className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
+                  />
+                </div>
+              </section>
+
+              <section className="pt-12 border-t border-zinc-900">
+                <button 
+                  onClick={() => { if(confirm("Deseja apagar todos os seus tópicos e histórico?")) resetAllData(); }}
+                  className="w-full flex items-center justify-center gap-3 p-5 rounded-2xl border border-red-900/30 text-red-500 hover:bg-red-500/10 transition-colors font-bold text-[10px] uppercase tracking-widest"
+                >
+                  <Trash2 size={16} /> Apagar Tudo (Reset)
+                </button>
+              </section>
             </div>
-          )}
-
-          {/* MODAIS (editTime e editingTopic) permanecem iguais */}
-          {modalType === 'editTime' && (
-            // ... modal edit time
-          )}
-
-          {editingTopic && (
-            // ... modal cor
           )}
         </div>
       </main>
+
+      {/* MODAL EDIÇÃO TEMPO */}
+      {modalType === 'editTime' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm px-6">
+          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2rem] w-full max-w-xs text-center">
+            <h3 className="text-white font-bold mb-6 uppercase text-[10px] tracking-widest opacity-40">Definir Minutos</h3>
+            <input 
+              autoFocus 
+              type="number" 
+              value={tempInputValue} 
+              onChange={(e) => setTempInputValue(e.target.value)}
+              className="w-full bg-black border border-zinc-800 rounded-2xl p-6 text-white mb-6 text-center outline-none font-bold text-5xl tracking-tighter"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setModalType(null)} className="flex-1 py-4 text-zinc-600 font-bold text-[10px] uppercase tracking-widest">Sair</button>
+              <button 
+                onClick={() => {
+                  const val = parseInt(tempInputValue);
+                  if(!isNaN(val) && val > 0) { 
+                    setCustomTime(val); 
+                    setTimeLeft(val * 60); 
+                  }
+                  setModalType(null);
+                }}
+                className="flex-1 py-4 bg-white text-black rounded-2xl font-bold text-[10px] uppercase tracking-widest"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIÇÃO COR TÓPICO */}
+      {editingTopic && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm px-6">
+          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2rem] w-full max-w-xs">
+            <h3 className="text-white font-bold mb-6 uppercase text-[10px] tracking-widest text-center opacity-40">Mudar Cor: {editingTopic.name}</h3>
+            <div className="grid grid-cols-4 gap-3 mb-8">
+              {COLOR_OPTIONS.map(c => (
+                <button 
+                  key={c}
+                  onClick={() => {
+                    const updated = topics.map(t => t.id === editingTopic.id ? {...t, color: c} : t);
+                    setTopics(updated);
+                    setEditingTopic(null);
+                  }}
+                  className="aspect-square rounded-full border-2 border-zinc-800 transition-transform hover:scale-125"
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+            <button onClick={() => setEditingTopic(null)} className="w-full py-4 text-zinc-600 font-bold text-[10px] uppercase tracking-widest">Fechar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
