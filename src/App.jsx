@@ -322,8 +322,11 @@ export default function App() {
     return `${hDisplay}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  
+  const totalMinutes = topics.reduce((acc, t) => acc + (t.totalMinutes || 0), 0);
+  const totalHours = (totalMinutes / 60).toFixed(1);
+  const avgSession = history.length > 0 ? (totalMinutes / history.length).toFixed(0) : 0;
   const maxMins = Math.max(...topics.map(t => t.totalMinutes || 0), 1);
+
   const statsByPeriod = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -356,19 +359,18 @@ export default function App() {
     return days;
   }, [history]);
 
-const currentStreak = useMemo(() => {
-  const goalMins = 60;
-  let streak = 0;
-
-  for (let i = calendarData.length - 1; i >= 0; i--) {
-    if (calendarData[i].minutes >= goalMins) {
-      streak++;
-    } else {
-      break;
+  const currentStreak = useMemo(() => {
+    let streak = 0;
+    const goalMins = 60;
+    for (let i = 0; i < calendarData.length; i++) {
+      if (calendarData[i].minutes >= goalMins) {
+        streak++;
+      } else {
+        break;
+      }
     }
-  }
-  return streak;
-}, [calendarData]);
+    return streak;
+  }, [calendarData]);
 
   const monthlyData = useMemo(() => {
     const months = [];
@@ -616,7 +618,7 @@ const currentStreak = useMemo(() => {
                 </div>
               </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
                   <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
                     <Clock size={24} />
@@ -624,6 +626,36 @@ const currentStreak = useMemo(() => {
                   <div>
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Total Estudado</span>
                     <h3 className="text-5xl font-bold text-white tabular-nums">{totalHours}h</h3>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500">
+                    <Zap size={24} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Média/Sessão</span>
+                    <h3 className="text-5xl font-bold text-white tabular-nums">{avgSession}m</h3>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
+                    <Activity size={24} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
+                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Este Mês</span>
+                      <span className="text-xs font-bold text-white">{statsByPeriod.month}h</span>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
+                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Esta Semana</span>
+                      <span className="text-xs font-bold text-white">{statsByPeriod.week}h</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Hoje</span>
+                      <span className="text-xs font-bold text-emerald-500">{statsByPeriod.day}h</span>
+                    </div>
                   </div>
                 </div>
 
