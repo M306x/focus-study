@@ -327,17 +327,22 @@ export default function App() {
   const avgSession = history.length > 0 ? (totalMinutes / history.length).toFixed(0) : 0;
   const maxMins = Math.max(...topics.map(t => t.totalMinutes || 0), 1);
 
+// --- ESTATÍSTICAS DE TEMPO (EXPANDIDO PARA O DASHBOARD) ---
   const statsByPeriod = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
+    const currentMonthStr = now.toISOString().slice(0, 7); // YYYY-MM
+    
+    // Cálculo do início da semana (Domingo)
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0,0,0,0);
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    startOfWeek.setHours(0, 0, 0, 0);
 
+    // Filtros
     const dayMins = history.filter(h => h.date === todayStr).reduce((acc, curr) => acc + curr.minutes, 0);
     const weekMins = history.filter(h => new Date(h.date) >= startOfWeek).reduce((acc, curr) => acc + curr.minutes, 0);
-    const monthMins = history.filter(h => new Date(h.date) >= startOfMonth).reduce((acc, curr) => acc + curr.minutes, 0);
+    // Filtrando estritamente pelo mês atual (String match é mais seguro para reset mensal)
+    const monthMins = history.filter(h => h.date.startsWith(currentMonthStr)).reduce((acc, curr) => acc + curr.minutes, 0);
 
     return {
       day: (dayMins / 60).toFixed(1),
@@ -346,9 +351,11 @@ export default function App() {
     };
   }, [history]);
 
+  // --- DADOS DO CALENDÁRIO ---
   const calendarData = useMemo(() => {
     const days = [];
     const now = new Date();
+    // Aumentei um pouco o range para garantir visualização
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
       d.setDate(now.getDate() - i);
@@ -359,31 +366,67 @@ export default function App() {
     return days;
   }, [history]);
 
+  // --- CORREÇÃO DO STREAK (LÓGICA INVERTIDA) ---
   const currentStreak = useMemo(() => {
     let streak = 0;
-    const goalMins = 60;
-    for (let i = 0; i < calendarData.length; i++) {
-      if (calendarData[i].minutes >= goalMins) {
+    const goalMins = 60; // Mínimo de 1 hora conforme pedido
+    
+    // Invertemos o array para começar checando de "hoje" para trás
+    const daysCheck = [...calendarData].reverse();
+    
+    for (let i = 0; i < daysCheck.length; i++) {
+      if (daysCheck[i].minutes >= goalMins) {
         streak++;
       } else {
-        break;
+        // Se hoje (índice 0) ainda não atingiu a meta, não quebra o streak se ontem atingiu.
+        // Mas se for um dia passado e não atingiu, quebra.
+        if (i === 0 && daysCheck[i].minutes < goalMins) {
+           continue; // Pula hoje se estiver incompleto e continua checando ontem
+        }
+        break; 
       }
     }
     return streak;
   }, [calendarData]);
 
+  // --- DADOS MENSAIS ---
   const monthlyData = useMemo(() => {
     const months = [];
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      // Ajuste para garantir comparação correta de datas
       const monthStr = monthStart.toLocaleString('default', { month: 'short', year: '2-digit' });
+      
       const mins = history.filter(h => {
         const hDate = new Date(h.date);
+        // Ajuste de timezone simples removendo horas para comparação de dia
         return hDate >= monthStart && hDate <= monthEnd;
       }).reduce((acc, curr) => acc + curr.minutes, 0);
+      
       months.push({ month: monthStr, hours: (mins / 60).toFixed(1) });
+    }
+    return months;
+  }, [history]);
+  
+  const maxMonthlyHours = Math.max(...monthlyData.map(m => parseFloat(m.hours)), 1);
+
+  // --- CÁLCULO MENSAL DOS TÓPICOS (NOVO REQUISITO) ---
+  const topicsMonthlyStats = useMemo(() => {
+    const now = new Date();
+    const currentMonthStr = now.toISOString().slice(0, 7); // Formato YYYY-MM
+    
+    return topics.map(topic => {
+        const mins = history
+            .filter(h => h.topicId === topic.id && h.date.startsWith(currentMonthStr))
+            .reduce((acc, h) => acc + h.minutes, 0);
+        return { ...topic, currentMonthMinutes: mins };
+    });
+  }, [topics, history]);
+
+  // Recalcular o máximo baseado apenas no mês atual para o gráfico ficar proporcional
+  const maxTopicMonthMins = Math.max(...topicsMonthlyStats.map(t => t.currentMonthMinutes), 1);
     }
     return months;
   }, [history]);
@@ -609,73 +652,151 @@ export default function App() {
              </div>
           )}
 
-          {view === 'dashboard' && (
-            <div className="space-y-12">
-              <div className="flex justify-between items-center">
+{view === 'dashboard' && (
+            <div className="space-y-6"> {/* Espaçamento reduzido globalmente para ficar mais coeso */}
+              
+              <div className="flex justify-between items-center mb-4">
                 <h2 className="text-3xl font-bold text-white tracking-tighter">Status</h2>
                 <div className="px-4 py-1.5 bg-zinc-900 rounded-full text-[10px] font-bold text-zinc-500 uppercase tracking-widest border border-zinc-800">
-                  Resumo Geral
+                  Resumo Mensal
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
-                  <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
-                    <Clock size={24} />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Total Estudado</span>
-                    <h3 className="text-5xl font-bold text-white tabular-nums">{totalHours}h</h3>
-                  </div>
-                </div>
-
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
-                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500">
-                    <Zap size={24} />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Média/Sessão</span>
-                    <h3 className="text-5xl font-bold text-white tabular-nums">{avgSession}m</h3>
-                  </div>
-                </div>
-
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
-                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
-                    <Activity size={24} />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
-                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Este Mês</span>
-                      <span className="text-xs font-bold text-white">{statsByPeriod.month}h</span>
+              {/* GRID SUPERIOR: TEMPO E STREAK (SEM MÉDIA E TOTAL) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* BLOCO 1: TEMPO (Expandido e Limpo) */}
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-center">
+                  <div className="flex justify-between items-end divide-x divide-zinc-800/50">
+                    <div className="flex-1 px-4 first:pl-0 text-center md:text-left">
+                      <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest block mb-2">Hoje</span>
+                      <span className="text-4xl md:text-5xl font-bold text-emerald-500 tabular-nums tracking-tighter">{statsByPeriod.day}h</span>
                     </div>
-                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
-                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Esta Semana</span>
-                      <span className="text-xs font-bold text-white">{statsByPeriod.week}h</span>
+                    <div className="flex-1 px-4 text-center md:text-left">
+                      <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest block mb-2">Semana</span>
+                      <span className="text-3xl md:text-4xl font-bold text-white tabular-nums tracking-tighter">{statsByPeriod.week}h</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Hoje</span>
-                      <span className="text-xs font-bold text-emerald-500">{statsByPeriod.day}h</span>
+                    <div className="flex-1 px-4 text-center md:text-left">
+                      <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest block mb-2">Mês</span>
+                      <span className="text-3xl md:text-4xl font-bold text-white tabular-nums tracking-tighter">{statsByPeriod.month}h</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
-                  <div className="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-500">
-                    <Flame size={24} />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Streak Atual</span>
-                    <h3 className="text-5xl font-bold text-white tabular-nums">{currentStreak} dias</h3>
-                  </div>
+                {/* BLOCO 2: STREAK (Geometria Limpa) */}
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex items-center justify-between relative overflow-hidden">
+                   <div className="z-10">
+                      <span className="text-[10px] font-bold text-orange-500 uppercase tracking-widest block mb-1">Sequência Atual</span>
+                      <h3 className="text-6xl font-bold text-white tabular-nums tracking-tighter">{currentStreak} <span className="text-lg text-zinc-600 font-medium">dias</span></h3>
+                      <p className="text-[9px] text-zinc-600 mt-2 font-bold uppercase tracking-wider">Meta: +1h diária</p>
+                   </div>
+                   <div className="absolute right-0 bottom-0 opacity-10 text-orange-500 pointer-events-none transform translate-x-4 translate-y-4">
+                      <Flame size={180} strokeWidth={1} />
+                   </div>
                 </div>
               </div>
 
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
-                <div className="flex justify-between items-center mb-8">
+              {/* CONSISTÊNCIA DIÁRIA */}
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2rem] p-8">
+                <div className="flex justify-between items-center mb-6">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <TrendingUp size={18} className="text-zinc-600" /> Consistência Diária
+                    <TrendingUp size={16} className="text-zinc-600" /> Consistência
                   </h3>
                 </div>
+                <div className="flex gap-2 justify-center h-20 items-end">
+                  {calendarData.map((day, i) => {
+                    const hasStudy = day.minutes > 0;
+                    const goalMins = 60; // Fixo visualmente em 1h para cálculo de cor
+                    let intensity = 0.1;
+                    let baseColor = '16, 185, 129'; // Verde
+
+                    if (hasStudy) {
+                        // Intensidade baseada no quão perto chegou de 1h ou se passou
+                       intensity = Math.min(day.minutes / goalMins, 1) * 0.8 + 0.2;
+                       if (day.minutes >= goalMins * 2) baseColor = '168, 85, 247'; // Roxo se dobro
+                    }
+
+                    return (
+                      <div 
+                        key={i} 
+                        title={`${day.date}: ${(day.minutes / 60).toFixed(1)}h`}
+                        className="w-full rounded-md transition-all hover:opacity-100"
+                        style={{ 
+                          height: hasStudy ? `${Math.min((day.minutes / 180) * 100, 100)}%` : '4px', // Altura dinâmica
+                          backgroundColor: hasStudy ? `rgba(${baseColor}, ${intensity})` : 'rgba(39, 39, 42, 0.5)',
+                          minHeight: hasStudy ? '10px' : '4px'
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-3 text-[8px] font-bold text-zinc-700 uppercase tracking-widest">
+                  <span>30 dias atrás</span>
+                  <span>Hoje</span>
+                </div>
+              </div>
+
+              {/* HORAS POR TÓPICO (Agora com dados mensais e posicionado ACIMA do progresso mensal) */}
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2rem] p-8">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
+                     <BarChart3 size={16} className="text-zinc-600" /> Foco Este Mês
+                  </h3>
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">Reset Mensal</span>
+                </div>
+                
+                <div className="flex flex-col gap-4">
+                  {topicsMonthlyStats.length === 0 ? (
+                    <div className="text-center py-8 text-zinc-700 text-[10px] font-bold uppercase tracking-widest">Sem tópicos ou estudos este mês</div>
+                  ) : (
+                    topicsMonthlyStats.map(t => {
+                      const percent = maxTopicMonthMins > 0 ? (t.currentMonthMinutes / maxTopicMonthMins) * 100 : 0;
+                      return (
+                        <div key={t.id} className="group">
+                          <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest mb-1 text-zinc-500 group-hover:text-zinc-300 transition-colors">
+                            <span>{t.name}</span>
+                            <span>{(t.currentMonthMinutes / 60).toFixed(1)}h</span>
+                          </div>
+                          <div className="w-full bg-zinc-900 rounded-full h-3 overflow-hidden">
+                            <div 
+                              className="h-full rounded-full transition-all duration-1000"
+                              style={{ width: `${percent}%`, backgroundColor: t.color, boxShadow: `0 0 15px ${t.color}22` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* PROGRESSO MENSAL (Movido para baixo conforme pedido) */}
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2rem] p-8">
+                <div className="flex justify-between items-center mb-10">
+                  <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
+                    <BarChart2 size={16} className="text-zinc-600" /> Histórico Semestral
+                  </h3>
+                </div>
+                <div className="flex items-end justify-between h-32 gap-4">
+                  {monthlyData.map((m, i) => {
+                    const height = (parseFloat(m.hours) / maxMonthlyHours) * 100;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center group">
+                        <div className="relative w-full flex justify-center flex-1">
+                          <div 
+                             className="absolute bottom-0 w-6 sm:w-8 rounded-t-lg transition-all duration-1000 group-hover:opacity-80"
+                            style={{ height: `${height}%`, background: 'linear-gradient(to top, #27272a, #52525b)' }}
+                          />
+                        </div>
+                        <span className="mt-3 text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{m.month}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+          )}
                 <div className="flex gap-2 justify-center">
                   {calendarData.map((day, i) => {
                     const hasStudy = day.minutes > 0;
