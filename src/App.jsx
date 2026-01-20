@@ -7,8 +7,7 @@ import {
   Calendar, Award, Zap, ChevronRight,
   Palette, BellRing, Trash2, Coffee, Brain,
   BookOpen, Download, Upload, FileJson,
-  Flame, BarChart2, ArrowUp, ArrowDown,
-  Droplet
+  Flame, BarChart2, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 const SOUND_LIBRARY = [
@@ -18,10 +17,7 @@ const SOUND_LIBRARY = [
   { id: 'pulse', name: 'Pulso Relaxante', type: 'sine', frequency: 523.25, duration: 1.2, detune: 0 }
 ];
 
-const COLOR_OPTIONS = [
-  '#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#FFFFFF', '#4ADE80', '#A855F7', '#F97316',
-  '#22C55E', '#EAB308', '#6366F1', '#F472B6', '#14B8A6', '#A78BFA', '#FBBF24', '#34D399', '#DB2777', '#60A5FA', '#E879F9' // Mais cores adicionadas
-];
+const COLOR_OPTIONS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#FFFFFF', '#4ADE80', '#A855F7', '#F97316'];
 
 const STORAGE_KEY = 'study_dashboard_data_v1';
 
@@ -32,10 +28,6 @@ export default function App() {
   const [alarmDuration, setAlarmDuration] = useState(5);
   const [infiniteAlarm, setInfiniteAlarm] = useState(false);
   const [dailyGoalHours, setDailyGoalHours] = useState(7);
-  const [waterAlertInterval, setWaterAlertInterval] = useState(1);
-  const [waterSoundSameAsAlarm, setWaterSoundSameAsAlarm] = useState(true);
-  const [selectedWaterSound, setSelectedWaterSound] = useState(SOUND_LIBRARY[0]);
-  const [waterAlertDuration, setWaterAlertDuration] = useState(5);
   
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
@@ -46,7 +38,6 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
-  const [lastWaterAlertTime, setLastWaterAlertTime] = useState(null);
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -55,7 +46,6 @@ export default function App() {
   const [modalType, setModalType] = useState(null); 
   const [editingTopic, setEditingTopic] = useState(null);
   const [tempInputValue, setTempInputValue] = useState("");
-  const [calendarDate, setCalendarDate] = useState(new Date()); // Novo: Data atual para calendário
 
   // --- PERSISTÊNCIA: CARREGAR DADOS DO LOCALSTORAGE ---
   useEffect(() => {
@@ -68,13 +58,6 @@ export default function App() {
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
         if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
-        if (data.waterAlertInterval) setWaterAlertInterval(data.waterAlertInterval);
-        if (data.waterSoundSameAsAlarm !== undefined) setWaterSoundSameAsAlarm(data.waterSoundSameAsAlarm);
-        if (data.selectedWaterSoundId) {
-          const sound = SOUND_LIBRARY.find(s => s.id === data.selectedWaterSoundId);
-          if (sound) setSelectedWaterSound(sound);
-        }
-        if (data.waterAlertDuration) setWaterAlertDuration(data.waterAlertDuration);
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -93,21 +76,17 @@ export default function App() {
       alarmDuration,
       infiniteAlarm,
       dailyGoalHours,
-      waterAlertInterval,
-      waterSoundSameAsAlarm,
-      selectedWaterSoundId: selectedWaterSound.id,
-      waterAlertDuration,
       selectedSoundId: selectedSound.id
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-  }, [topics, history, alarmDuration, infiniteAlarm, dailyGoalHours, waterAlertInterval, waterSoundSameAsAlarm, selectedWaterSound, waterAlertDuration, selectedSound]);
+  }, [topics, history, alarmDuration, infiniteAlarm, dailyGoalHours, selectedSound]);
 
   // --- RESET SEMANAL AUTOMÁTICO DE weeklyMinutes ---
   useEffect(() => {
     const updateWeeklyMinutes = () => {
       const now = new Date();
       const startOfCurrentWeek = new Date(now);
-      startOfCurrentWeek.setDate(now.getDate() - (now.getDay() + 1) % 7); // Semana começa no sábado
+      startOfCurrentWeek.setDate(now.getDate() - (now.getDay() + 1) % 7); // Semana começa no sábado (0=dom, 6=sáb)
       startOfCurrentWeek.setHours(23, 0, 0, 0); // Reset no sábado às 23h
 
       setTopics(prevTopics =>
@@ -141,10 +120,6 @@ export default function App() {
       alarmDuration,
       infiniteAlarm,
       dailyGoalHours,
-      waterAlertInterval,
-      waterSoundSameAsAlarm,
-      selectedWaterSoundId: selectedWaterSound.id,
-      waterAlertDuration,
       selectedSoundId: selectedSound.id,
       exportDate: new Date().toISOString()
     };
@@ -174,13 +149,6 @@ export default function App() {
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
         if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
-        if (data.waterAlertInterval) setWaterAlertInterval(data.waterAlertInterval);
-        if (data.waterSoundSameAsAlarm !== undefined) setWaterSoundSameAsAlarm(data.waterSoundSameAsAlarm);
-        if (data.selectedWaterSoundId) {
-          const sound = SOUND_LIBRARY.find(s => s.id === data.selectedWaterSoundId);
-          if (sound) setSelectedWaterSound(sound);
-        }
-        if (data.waterAlertDuration) setWaterAlertDuration(data.waterAlertDuration);
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -210,16 +178,6 @@ export default function App() {
         const remaining = Math.max(0, Math.round((endTime - now) / 1000));
         setTimeLeft(remaining);
 
-        // Verificar alerta de água apenas se ativado
-        if (mode === 'focus' && waterAlertInterval > 0 && lastWaterAlertTime) {
-          const elapsedSinceLast = (now - lastWaterAlertTime) / (1000 * 60 * 60); // Em horas
-          if (elapsedSinceLast >= waterAlertInterval) {
-            const waterSound = waterSoundSameAsAlarm ? selectedSound : selectedWaterSound;
-            playSound(waterSound, waterAlertDuration);
-            setLastWaterAlertTime(now);
-          }
-        }
-
         if (remaining <= 0) {
           clearInterval(timerRef.current);
           handleComplete();
@@ -228,7 +186,7 @@ export default function App() {
     }
 
     return () => clearInterval(timerRef.current);
-  }, [isRunning, endTime, lastWaterAlertTime, mode, waterAlertInterval, waterSoundSameAsAlarm, selectedSound, selectedWaterSound, waterAlertDuration]);
+  }, [isRunning, endTime]);
 
   const playSound = (soundConfig, duration) => {
     initAudio();
@@ -268,7 +226,7 @@ export default function App() {
 
   const handleComplete = () => {
     setIsRunning(false);
-    initAudio();
+    initAudio(); // Garantir que audio esteja inicializado antes do som
     setIsAlarmPlaying(true);
     playSound(selectedSound, infiniteAlarm ? 'infinite' : alarmDuration);
 
@@ -364,6 +322,11 @@ export default function App() {
     return `${hDisplay}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const totalMinutes = topics.reduce((acc, t) => acc + (t.totalMinutes || 0), 0);
+  const totalHours = (totalMinutes / 60).toFixed(1);
+  const avgSession = history.length > 0 ? (totalMinutes / history.length).toFixed(0) : 0;
+  const maxMins = Math.max(...topics.map(t => t.totalMinutes || 0), 1);
+
   const statsByPeriod = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -383,8 +346,6 @@ export default function App() {
     };
   }, [history]);
 
-  const monthlyTotalHours = statsByPeriod.month;
-
   const calendarData = useMemo(() => {
     const days = [];
     const now = new Date();
@@ -401,9 +362,8 @@ export default function App() {
   const currentStreak = useMemo(() => {
     let streak = 0;
     const goalMins = 60;
-    // Começar de hoje (último item) para trás
     for (let i = 0; i < calendarData.length; i++) {
-      if (calendarData[calendarData.length - 1 - i].minutes >= goalMins) {
+      if (calendarData[i].minutes >= goalMins) {
         streak++;
       } else {
         break;
@@ -430,41 +390,6 @@ export default function App() {
 
   const maxMonthlyHours = Math.max(...monthlyData.map(m => m.hours), 1);
 
-  const monthlyTopicMins = useMemo(() => {
-    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    return topics.map(t => {
-      const mins = history.filter(h => h.topicId === t.id && new Date(h.date) >= startOfMonth).reduce((acc, curr) => acc + curr.minutes, 0);
-      return { ...t, monthlyMinutes: mins };
-    });
-  }, [topics, history]);
-
-  const maxMonthlyTopicMins = Math.max(...monthlyTopicMins.map(t => t.monthlyMinutes || 0), 1);
-
-  // Novo: Dados para calendário
-  const calendarMonthData = useMemo(() => {
-    const firstDay = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
-    const lastDay = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0);
-    const days = [];
-    for (let d = 1; d <= lastDay.getDate(); d++) {
-      const date = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), d);
-      const dateStr = date.toISOString().split('T')[0];
-      const mins = history.filter(h => h.date === dateStr).reduce((acc, curr) => acc + curr.minutes, 0);
-      const topicDetails = topics.map(t => ({
-        name: t.name,
-        color: t.color,
-        mins: history.filter(h => h.topicId === t.id && h.date === dateStr).reduce((acc, curr) => acc + curr.minutes, 0)
-      })).filter(td => td.mins > 0);
-      days.push({ date: d, minutes: mins, hours: (mins / 60).toFixed(1), topicDetails });
-    }
-    return { firstDay, days };
-  }, [calendarDate, history, topics]);
-
-  const changeCalendarMonth = (delta) => {
-    const newDate = new Date(calendarDate);
-    newDate.setMonth(calendarDate.getMonth() + delta);
-    setCalendarDate(newDate);
-  };
-
   return (
     <div className={`flex flex-col h-screen transition-colors duration-1000 ${mode === 'break' ? 'bg-zinc-950' : 'bg-black'} text-zinc-400 font-sans overflow-hidden`} onClick={initAudio}>
       <style>{`
@@ -484,38 +409,11 @@ export default function App() {
           animation: float 3s infinite linear;
           pointer-events: none;
         }
-        @keyframes barGrow {
-          0% { height: 0%; }
-          100% { height: 100%; }
+        .gradient-bg {
+          background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
         }
-        .bar-grow {
-          animation: barGrow 1s ease-out forwards;
-        }
-        .calendar-grid {
-          display: grid;
-          grid-template-columns: repeat(7, 1fr);
-          gap: 8px;
-        }
-        .calendar-day {
-          aspect-ratio: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 8px;
-          font-size: 12px;
-          transition: background 0.3s;
-        }
-        .calendar-day.has-study {
-          background: linear-gradient(135deg, #10B981 0%, #3B82F6 100%);
-          color: white;
-        }
-        .calendar-day:hover {
-          opacity: 0.8;
-          cursor: pointer;
-        }
-        .calendar-details {
-          max-height: 200px;
-          overflow-y: auto;
+        .shadow-glow {
+          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
       `}</style>
 
@@ -554,7 +452,6 @@ export default function App() {
             { id: 'labels', icon: Tag, label: 'Tópicos' },
             { id: 'dashboard', icon: BarChart3, label: 'Status' },
             { id: 'goals', icon: Target, label: 'Metas' },
-            { id: 'calendar', icon: Calendar, label: 'Calendário' } // Novo: Aba de calendário
           ].map(item => (
             <button 
               key={item.id} 
@@ -649,9 +546,6 @@ export default function App() {
                       handlePause();
                     } else {
                       setEndTime(Date.now() + timeLeft * 1000);
-                      if (mode === 'focus' && waterAlertInterval > 0) {
-                        setLastWaterAlertTime(Date.now());
-                      }
                     }
                     setIsRunning(!isRunning); 
                   }} 
@@ -718,20 +612,30 @@ export default function App() {
           {view === 'dashboard' && (
             <div className="space-y-12">
               <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold text-white tracking-tighter">STATUS</h2>
+                <h2 className="text-3xl font-bold text-white tracking-tighter">Status</h2>
                 <div className="px-4 py-1.5 bg-zinc-900 rounded-full text-[10px] font-bold text-zinc-500 uppercase tracking-widest border border-zinc-800">
                   Resumo Geral
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
                   <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
                     <Clock size={24} />
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Total Estudado</span>
-                    <h3 className="text-5xl font-bold text-white tabular-nums">{monthlyTotalHours}h</h3>
+                    <h3 className="text-5xl font-bold text-white tabular-nums">{totalHours}h</h3>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500">
+                    <Zap size={24} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Média/Sessão</span>
+                    <h3 className="text-5xl font-bold text-white tabular-nums">{avgSession}m</h3>
                   </div>
                 </div>
 
@@ -826,14 +730,13 @@ export default function App() {
                     const diff = m.hours - prevHours;
                     const trendColor = diff > 0 ? 'text-emerald-500' : diff < 0 ? 'text-red-500' : 'text-zinc-500';
                     const trendIcon = diff > 0 ? ArrowUp : diff < 0 ? ArrowDown : null;
-                    const barColor = diff > 0 ? '#10B981' : diff < 0 ? '#EF4444' : '#3B82F6';
 
                     return (
                       <div key={i} className="flex-1 flex flex-col items-center group">
                         <div className="relative w-full flex justify-center flex-1">
                           <div 
-                            className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80 bar-grow"
-                            style={{ height: `${height}%`, backgroundColor: barColor, boxShadow: `0 0 40px -10px ${barColor}44` }}
+                            className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80"
+                            style={{ height: `${height}%`, background: 'linear-gradient(to top, #10B981, #3B82F6)', boxShadow: `0 0 40px -10px rgba(16,185,129,0.3)` }}
                           />
                         </div>
                         <div className="mt-2 flex items-center gap-1">
@@ -856,8 +759,8 @@ export default function App() {
                   {topics.length === 0 ? (
                     <div className="w-full flex items-center justify-center text-zinc-800 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
                   ) : (
-                    monthlyTopicMins.map(t => {
-                      const height = ((t.monthlyMinutes || 0) / maxMonthlyTopicMins) * 100;
+                    topics.map(t => {
+                      const height = ((t.totalMinutes || 0) / maxMins) * 100;
                       return (
                         <div key={t.id} className="flex-1 flex flex-col items-center group">
                           <div className="relative w-full flex justify-center flex-1">
@@ -872,40 +775,6 @@ export default function App() {
                     })
                   )}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {view === 'calendar' && ( // Novo: View de calendário
-            <div className="max-w-xl mx-auto space-y-6">
-              <div className="flex justify-between items-center">
-                <button onClick={() => changeCalendarMonth(-1)} className="text-zinc-400 hover:text-white">
-                  <ChevronRight size={20} className="rotate-180" />
-                </button>
-                <h2 className="text-white font-bold text-lg uppercase tracking-widest">
-                  {calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                </h2>
-                <button onClick={() => changeCalendarMonth(1)} className="text-zinc-400 hover:text-white">
-                  <ChevronRight size={20} />
-                </button>
-              </div>
-              <div className="grid grid-cols-7 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">
-                <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
-              </div>
-              <div className="calendar-grid">
-                {Array.from({ length: calendarMonthData.firstDay.getDay() }).map((_, i) => (
-                  <div key={`empty-${i}`} className="calendar-day bg-transparent" />
-                ))}
-                {calendarMonthData.days.map((day, i) => (
-                  <div 
-                    key={i} 
-                    className={`calendar-day ${day.minutes > 0 ? 'has-study' : 'bg-zinc-900/20'}`}
-                    title={`Total: ${day.hours}h`}
-                    onClick={() => setModalType({ type: 'dayDetails', data: day })}
-                  >
-                    {day.date}
-                  </div>
-                ))}
               </div>
             </div>
           )}
@@ -1094,75 +963,6 @@ export default function App() {
                 </div>
               </section>
 
-              <section>
-                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
-                  <Droplet size={16} /> Alerta de Água
-                </h2>
-                <div className="space-y-4">
-                  <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-white text-xs font-bold uppercase tracking-widest">Intervalo</span>
-                      <span className="text-zinc-600 text-[9px] font-bold uppercase">Horas entre alertas (0 desativa)</span>
-                    </div>
-                    <input 
-                      type="number" 
-                      value={waterAlertInterval}
-                      min={0}
-                      onChange={(e) => {
-                        const val = Math.max(0, parseInt(e.target.value) || 0);
-                        setWaterAlertInterval(val);
-                      }}
-                      className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
-                    />
-                  </div>
-
-                  <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-white text-xs font-bold uppercase tracking-widest">Duração</span>
-                      <span className="text-zinc-600 text-[9px] font-bold uppercase">Segundos de toque</span>
-                    </div>
-                    <input 
-                      type="number" 
-                      value={waterAlertDuration}
-                      min={1}
-                      onChange={(e) => {
-                        const val = Math.max(1, parseInt(e.target.value) || 1);
-                        setWaterAlertDuration(val);
-                      }}
-                      className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
-                    />
-                  </div>
-
-                  <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-white text-xs font-bold uppercase tracking-widest">Som Igual ao Alarme</span>
-                      <span className="text-zinc-600 text-[9px] font-bold uppercase">Ou personalizado</span>
-                    </div>
-                    <button 
-                      onClick={() => setWaterSoundSameAsAlarm(!waterSoundSameAsAlarm)}
-                      className={`w-12 h-6 rounded-full p-1 transition-colors ${waterSoundSameAsAlarm ? 'bg-emerald-500' : 'bg-zinc-800'}`}
-                    >
-                      <div className={`w-4 h-4 bg-white rounded-full transition-transform ${waterSoundSameAsAlarm ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  {!waterSoundSameAsAlarm && (
-                    <div className="grid gap-2">
-                      {SOUND_LIBRARY.map(sound => (
-                        <button 
-                          key={sound.id}
-                          onClick={() => { setSelectedWaterSound(sound); playSound(sound, 2); }}
-                          className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${selectedWaterSound.id === sound.id ? 'bg-zinc-900 border-zinc-600 text-white shadow-xl' : 'bg-transparent border-zinc-900 text-zinc-700 hover:border-zinc-800'}`}
-                        >
-                          <span className="text-[10px] font-bold uppercase tracking-widest">{sound.name}</span>
-                          <Volume2 size={14} className={selectedWaterSound.id === sound.id ? "text-white" : "text-zinc-800"} />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </section>
-
               <section className="pt-12 border-t border-zinc-900">
                 <button 
                   onClick={() => { if(confirm("Deseja apagar todos os seus tópicos e histórico?")) resetAllData(); }}
@@ -1222,25 +1022,6 @@ export default function App() {
               ))}
             </div>
             <button onClick={() => setEditingTopic(null)} className="w-full py-4 text-zinc-600 font-bold text-[10px] uppercase tracking-widest">Fechar</button>
-          </div>
-        </div>
-      )}
-
-      {/* Novo: Modal de detalhes do dia no calendário */}
-      {modalType?.type === 'dayDetails' && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm px-6">
-          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2rem] w-full max-w-xs text-center">
-            <h3 className="text-white font-bold mb-6 uppercase text-[10px] tracking-widest opacity-40">Detalhes do Dia {modalType.data.date}</h3>
-            <p className="text-white mb-4">Total: {modalType.data.hours}h</p>
-            <div className="calendar-details custom-scrollbar">
-              {modalType.data.topicDetails.map((td, i) => (
-                <div key={i} className="flex justify-between text-[10px] mb-2">
-                  <span style={{ color: td.color }}>{td.name}</span>
-                  <span>{(td.mins / 60).toFixed(1)}h</span>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => setModalType(null)} className="mt-6 w-full py-4 bg-white text-black rounded-2xl font-bold text-[10px] uppercase tracking-widest">Fechar</button>
           </div>
         </div>
       )}
