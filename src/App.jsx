@@ -325,7 +325,6 @@ export default function App() {
   const totalMinutes = topics.reduce((acc, t) => acc + (t.totalMinutes || 0), 0);
   const totalHours = (totalMinutes / 60).toFixed(1);
   const avgSession = history.length > 0 ? (totalMinutes / history.length).toFixed(0) : 0;
-  const maxMins = Math.max(...topics.map(t => t.totalMinutes || 0), 1);
 
   const statsByPeriod = useMemo(() => {
     const now = new Date();
@@ -362,7 +361,7 @@ export default function App() {
   const currentStreak = useMemo(() => {
     let streak = 0;
     const goalMins = 60;
-    for (let i = 0; i < calendarData.length; i++) {
+    for (let i = calendarData.length - 1; i >= 0; i--) {
       if (calendarData[i].minutes >= goalMins) {
         streak++;
       } else {
@@ -389,6 +388,17 @@ export default function App() {
   }, [history]);
 
   const maxMonthlyHours = Math.max(...monthlyData.map(m => m.hours), 1);
+
+  const topicMonthlyData = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return topics.map(t => {
+      const monthlyMins = history.filter(h => h.topicId === t.id && new Date(h.date) >= startOfMonth).reduce((sum, h) => sum + h.minutes, 0);
+      return { ...t, monthlyMinutes: monthlyMins };
+    });
+  }, [topics, history]);
+
+  const maxTopicMonthlyMins = Math.max(...topicMonthlyData.map(t => t.monthlyMinutes || 0), 1);
 
   return (
     <div className={`flex flex-col h-screen transition-colors duration-1000 ${mode === 'break' ? 'bg-zinc-950' : 'bg-black'} text-zinc-400 font-sans overflow-hidden`} onClick={initAudio}>
@@ -618,27 +628,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
-                  <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
-                    <Clock size={24} />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Total Estudado</span>
-                    <h3 className="text-5xl font-bold text-white tabular-nums">{totalHours}h</h3>
-                  </div>
-                </div>
-
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
-                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500">
-                    <Zap size={24} />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Média/Sessão</span>
-                    <h3 className="text-5xl font-bold text-white tabular-nums">{avgSession}m</h3>
-                  </div>
-                </div>
-
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
                   <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
                     <Activity size={24} />
@@ -720,6 +710,34 @@ export default function App() {
               <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-12">
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
+                    <BarChart3 size={18} className="text-zinc-600" /> Horas por Tópico
+                  </h3>
+                </div>
+                <div className="flex items-end justify-between h-48 gap-4 px-4">
+                  {topics.length === 0 ? (
+                    <div className="w-full flex items-center justify-center text-zinc-800 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
+                  ) : (
+                    topicMonthlyData.map(t => {
+                      const height = ((t.monthlyMinutes || 0) / maxTopicMonthlyMins) * 100;
+                      return (
+                        <div key={t.id} className="flex-1 flex flex-col items-center group">
+                          <div className="relative w-full flex justify-center flex-1">
+                             <div 
+                               className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80"
+                               style={{ height: `${height}%`, backgroundColor: t.color, boxShadow: `0 0 40px -10px ${t.color}44` }}
+                             />
+                          </div>
+                          <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{t.name}</span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
+                <div className="flex justify-between items-center mb-12">
+                  <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
                     <BarChart2 size={18} className="text-zinc-600" /> Progresso Mensal
                   </h3>
                 </div>
@@ -746,34 +764,6 @@ export default function App() {
                       </div>
                     );
                   })}
-                </div>
-              </div>
-
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
-                <div className="flex justify-between items-center mb-12">
-                  <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <BarChart3 size={18} className="text-zinc-600" /> Horas por Tópico
-                  </h3>
-                </div>
-                <div className="flex items-end justify-between h-48 gap-4 px-4">
-                  {topics.length === 0 ? (
-                    <div className="w-full flex items-center justify-center text-zinc-800 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
-                  ) : (
-                    topics.map(t => {
-                      const height = ((t.totalMinutes || 0) / maxMins) * 100;
-                      return (
-                        <div key={t.id} className="flex-1 flex flex-col items-center group">
-                          <div className="relative w-full flex justify-center flex-1">
-                             <div 
-                               className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80"
-                               style={{ height: `${height}%`, backgroundColor: t.color, boxShadow: `0 0 40px -10px ${t.color}44` }}
-                             />
-                          </div>
-                          <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{t.name}</span>
-                        </div>
-                      );
-                    })
-                  )}
                 </div>
               </div>
             </div>
