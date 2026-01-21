@@ -629,11 +629,11 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col aspect-square">
                   <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
                     <Activity size={24} />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 mt-4">
                     <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
                       <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Este Mês</span>
                       <span className="text-xs font-bold text-white">{statsByPeriod.month}h</span>
@@ -649,11 +649,11 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col justify-between aspect-square">
+                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col aspect-square">
                   <div className="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-500">
                     <Flame size={24} />
                   </div>
-                  <div>
+                  <div className="mt-4">
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Streak Atual</span>
                     <h3 className="text-5xl font-bold text-white tabular-nums">{currentStreak} dias</h3>
                   </div>
