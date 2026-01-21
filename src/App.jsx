@@ -629,33 +629,33 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col aspect-square">
-                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
-                    <Activity size={24} />
+                <div className="bg-zinc-900/30 border border-zinc-900 p-6 rounded-[2rem] flex items-start gap-4">
+                  <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
+                    <Activity size={20} />
                   </div>
-                  <div className="space-y-2 mt-4">
-                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
-                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Este Mês</span>
-                      <span className="text-xs font-bold text-white">{statsByPeriod.month}h</span>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-0.5">
+                      <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Este Mês</span>
+                      <span className="text-[11px] font-bold text-white">{statsByPeriod.month}h</span>
                     </div>
-                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-1">
-                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Esta Semana</span>
-                      <span className="text-xs font-bold text-white">{statsByPeriod.week}h</span>
+                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-0.5">
+                      <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Esta Semana</span>
+                      <span className="text-[11px] font-bold text-white">{statsByPeriod.week}h</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">Hoje</span>
-                      <span className="text-xs font-bold text-emerald-500">{statsByPeriod.day}h</span>
+                      <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Hoje</span>
+                      <span className="text-[11px] font-bold text-emerald-500">{statsByPeriod.day}h</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-zinc-900/30 border border-zinc-900 p-8 rounded-[2rem] flex flex-col aspect-square">
-                  <div className="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-500">
-                    <Flame size={24} />
+                <div className="bg-zinc-900/30 border border-zinc-900 p-6 rounded-[2rem] flex items-start gap-4">
+                  <div className="w-10 h-10 bg-orange-500/10 rounded-xl flex items-center justify-center text-orange-500">
+                    <Flame size={20} />
                   </div>
-                  <div className="mt-4">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Streak Atual</span>
-                    <h3 className="text-5xl font-bold text-white tabular-nums">{currentStreak} dias</h3>
+                  <div className="flex-1">
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">Streak Atual</span>
+                    <h3 className="text-4xl font-bold text-white tabular-nums">{currentStreak} dias</h3>
                   </div>
                 </div>
               </div>
