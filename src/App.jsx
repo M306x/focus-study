@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
-  Play, Pause, RotateCcw, 
-  Timer, Target, Tag, Settings, 
-  X, Clock, TrendingUp, Volume2, 
-  BarChart3, Activity, CheckCircle2,
-  Calendar, Award, Zap, ChevronRight,
-  Palette, BellRing, Trash2, Coffee, Brain,
-  BookOpen, Download, Upload, FileJson,
-  Flame, BarChart2, ArrowUp, ArrowDown
+  Play, Pause, RotateCcw, Timer, Target, Tag, Settings, X, Clock, 
+  TrendingUp, Volume2, BarChart3, Activity, CheckCircle2, Calendar, 
+  Award, Zap, ChevronRight, Palette, BellRing, Trash2, Coffee, Brain,
+  BookOpen, Download, Upload, FileJson, Flame, BarChart2, ArrowUp, 
+  ArrowDown, Sun, Moon 
 } from 'lucide-react';
 
 const SOUND_LIBRARY = [
@@ -16,7 +13,6 @@ const SOUND_LIBRARY = [
   { id: 'nature', name: 'Eco da Natureza', type: 'triangle', frequency: 330, duration: 2.5, detune: 2 },
   { id: 'pulse', name: 'Pulso Relaxante', type: 'sine', frequency: 523.25, duration: 1.2, detune: 0 }
 ];
-
 const COLOR_OPTIONS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#FFFFFF', '#4ADE80', '#A855F7', '#F97316'];
 
 const STORAGE_KEY = 'study_dashboard_data_v1';
@@ -28,6 +24,7 @@ export default function App() {
   const [alarmDuration, setAlarmDuration] = useState(5);
   const [infiniteAlarm, setInfiniteAlarm] = useState(false);
   const [dailyGoalHours, setDailyGoalHours] = useState(7);
+  const [theme, setTheme] = useState('dark');
   
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
@@ -400,60 +397,44 @@ export default function App() {
 
   const maxTopicMonthlyMins = Math.max(...topicMonthlyData.map(t => t.monthlyMinutes || 0), 1);
 
-  return (
-    <div className={`flex flex-col h-screen transition-colors duration-1000 ${mode === 'break' ? 'bg-zinc-950' : 'bg-black'} text-zinc-400 font-sans overflow-hidden`} onClick={initAudio}>
+return (
+    <div className={`flex flex-col h-screen transition-colors duration-500 ${theme === 'light' ? 'bg-[#f8f9fa] text-zinc-900' : (mode === 'break' ? 'bg-zinc-950' : 'bg-black')} font-sans overflow-hidden`} onClick={initAudio}>
       <style>{`
+        /* 1) FONTE EM 15PX PARA TODO O SITE */
+        * { font-size: 15px !important; }
+        
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: ${theme === 'light' ? '#d1d5db' : '#27272a'}; border-radius: 10px; }
         
+        /* 2) ESTILO MODO CLARO (INSPIRADO NO GROK) */
+        ${theme === 'light' ? `
+          .text-white { color: #000000 !important; }
+          .bg-black { background-color: #ffffff !important; }
+          .bg-zinc-900 { background-color: #f1f3f5 !important; }
+          .bg-zinc-900\/40 { background-color: rgba(241, 243, 245, 0.8) !important; }
+          .border-zinc-900, .border-zinc-800 { border-color: #e9ecef !important; }
+          .text-zinc-400, .text-zinc-500, .text-zinc-600, .text-zinc-700 { color: #495057 !important; }
+          .bg-zinc-800 { background-color: #e9ecef !important; }
+        ` : ''}
+
         @keyframes float {
-          0% { transform: translateY(0px) opacity(0); }
+          0% { transform: translateY(0px); opacity: 0; }
           50% { opacity: 0.5; }
           100% { transform: translateY(-100px); opacity: 0; }
         }
-        .particle {
-          position: absolute;
-          animation: float 3s infinite linear;
-          pointer-events: none;
-        }
-        .gradient-bg {
-          background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
-        }
-        .shadow-glow {
-          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-        }
+        .particle { position: absolute; animation: float 3s infinite linear; pointer-events: none; }
       `}</style>
 
-      {/* ANIMAÇÃO DE BREAK */}
-      {mode === 'break' && isRunning && (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(20)].map((_, i) => (
-            <div 
-              key={i} 
-              className="particle text-emerald-500/20"
-              style={{ 
-                left: `${Math.random() * 100}%`, 
-                top: '100%', 
-                animationDelay: `${Math.random() * 3}s`,
-                fontSize: `${Math.random() * 20 + 10}px`
-              }}
-            >
-              <Coffee />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* NAVEGAÇÃO SUPERIOR */}
-      <header className="h-20 border-b border-zinc-900 flex items-center justify-between px-12 bg-black shrink-0 z-10">
+      {/* BARRA SUPERIOR (HEADER) */}
+      <header className={`h-20 border-b ${theme === 'light' ? 'border-gray-200 bg-white' : 'border-zinc-900 bg-black'} flex items-center justify-between px-12 shrink-0 z-10`}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-black">
+          <div className={`w-8 h-8 ${theme === 'light' ? 'bg-black text-white' : 'bg-white text-black'} rounded-lg flex items-center justify-center`}>
             <BookOpen size={18} strokeWidth={2.5} />
           </div>
-          <span className="text-white font-bold tracking-tighter text-lg uppercase">Study</span>
+          <span className={`${theme === 'light' ? 'text-black' : 'text-white'} font-bold tracking-tighter text-lg uppercase`}>Study</span>
         </div>
         
         <nav className="flex gap-4">
@@ -466,7 +447,9 @@ export default function App() {
             <button 
               key={item.id} 
               onClick={() => setView(item.id)} 
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${view === item.id ? 'text-white bg-zinc-900' : 'text-zinc-600 hover:text-zinc-400'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${view === item.id ?
+                (theme === 'light' ? 'text-black bg-gray-100' : 'text-white bg-zinc-900') : 
+                'text-zinc-500 hover:text-zinc-400'}`}
             >
               <item.icon size={16} strokeWidth={2} />
               <span className="text-[10px] font-bold uppercase tracking-widest">{item.label}</span>
@@ -474,11 +457,23 @@ export default function App() {
           ))}
         </nav>
 
-        <button onClick={() => setView('settings')} className={`p-2 rounded-lg transition-colors ${view === 'settings' ? 'text-white bg-zinc-900' : 'text-zinc-700 hover:text-zinc-400'}`}>
-          <Settings size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* BOTÃO MODO CLARO/ESCURO */}
+          <button 
+            onClick={(e) => { e.stopPropagation(); setTheme(theme === 'dark' ? 'light' : 'dark'); }}
+            className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'text-zinc-800 hover:bg-gray-100' : 'text-zinc-500 hover:text-white'}`}
+          >
+            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+          </button>
+          
+          <button onClick={() => setView('settings')} className={`p-2 rounded-lg transition-colors ${view === 'settings' ?
+            (theme === 'light' ? 'text-black bg-gray-100' : 'text-white bg-zinc-900') : 
+            'text-zinc-700 hover:text-zinc-400'}`}>
+            <Settings size={20} />
+          </button>
+        </div>
       </header>
-
+  
       <main className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="p-8 max-w-5xl mx-auto pb-24">
           
@@ -748,7 +743,6 @@ export default function App() {
                     const diff = m.hours - prevHours;
                     const trendColor = diff > 0 ? 'text-emerald-500' : diff < 0 ? 'text-red-500' : 'text-zinc-500';
                     const trendIcon = diff > 0 ? ArrowUp : diff < 0 ? ArrowDown : null;
-
                     return (
                       <div key={i} className="flex-1 flex flex-col items-center group">
                         <div className="relative w-full flex justify-center flex-1">
