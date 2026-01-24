@@ -2,52 +2,82 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Play, Pause, RotateCcw, 
   Timer, Target, Tag, Settings, 
-  X, Clock, TrendingUp, Volume2, 
-  BarChart3, Activity, CheckCircle2,
-  Calendar, Award, Zap, ChevronRight,
-  Palette, BellRing, Trash2, Coffee, Brain,
+  X, TrendingUp, Volume2, 
+  BarChart3, Activity, 
+  Award, Zap, ChevronRight,
+  BellRing, Trash2, Coffee, Brain,
   BookOpen, Download, Upload, FileJson,
-  Flame, BarChart2, ArrowUp, ArrowDown
+  Flame, BarChart2, ArrowUp, ArrowDown,
+  Sun, Moon // Adicionado ícones de tema
 } from 'lucide-react';
 
 const SOUND_LIBRARY = [
-  { id: 'zen', name: 'Taça Tibetan', type: 'sine', frequency: 440, duration: 2.0, detune: -5 },
+  { id: 'zen', name: 'Taça Tibetana', type: 'sine', frequency: 440, duration: 2.0, detune: -5 },
   { id: 'harp', name: 'Harpa Suave', type: 'sine', frequency: 880, duration: 1.5, detune: 10 },
   { id: 'nature', name: 'Eco da Natureza', type: 'triangle', frequency: 330, duration: 2.5, detune: 2 },
   { id: 'pulse', name: 'Pulso Relaxante', type: 'sine', frequency: 523.25, duration: 1.2, detune: 0 }
 ];
 
-const COLOR_OPTIONS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#FFFFFF', '#4ADE80', '#A855F7', '#F97316'];
+const COLOR_OPTIONS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#71717a', '#4ADE80', '#A855F7', '#F97316'];
 
 const STORAGE_KEY = 'study_dashboard_data_v1';
+const THEME_KEY = 'study_theme_pref';
 
 export default function App() {
+  // --- ESTADOS GERAIS ---
   const [view, setView] = useState('focus');
-  const [mode, setMode] = useState('focus'); 
+  const [mode, setMode] = useState('focus');
+  // Carrega o tema salvo ou usa dark como padrão
+  const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
+  
+  // --- CONFIGURAÇÕES ---
   const [selectedSound, setSelectedSound] = useState(SOUND_LIBRARY[0]);
   const [alarmDuration, setAlarmDuration] = useState(5);
   const [infiniteAlarm, setInfiniteAlarm] = useState(false);
   const [dailyGoalHours, setDailyGoalHours] = useState(7);
-  
+
+  // --- DADOS ---
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
   const [activeTopic, setActiveTopic] = useState(null);
 
+  // --- TIMER ---
   const [customTime, setCustomTime] = useState(25);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
+
+  // --- REFS ---
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
   const fileInputRef = useRef(null);
   const alarmPlayingRef = useRef(false);
 
+  // --- MODAIS / INPUTS ---
   const [modalType, setModalType] = useState(null); 
   const [editingTopic, setEditingTopic] = useState(null);
   const [tempInputValue, setTempInputValue] = useState("");
 
-  // --- PERSISTÊNCIA: CARREGAR DADOS DO LOCALSTORAGE ---
+  // --- HELPER DE ESTILOS (Grok Theme Logic) ---
+  // Função auxiliar para classes dinâmicas baseadas no tema
+  const getThemeClasses = (type) => {
+    const isDark = theme === 'dark';
+    switch (type) {
+      case 'bg': return isDark ? 'bg-black' : 'bg-white';
+      case 'text-primary': return isDark ? 'text-white' : 'text-zinc-900';
+      case 'text-secondary': return isDark ? 'text-zinc-400' : 'text-zinc-500';
+      case 'card': return isDark ? 'bg-zinc-900/40 border-zinc-900' : 'bg-zinc-50 border-zinc-200';
+      case 'card-hover': return isDark ? 'hover:bg-zinc-900/60' : 'hover:bg-zinc-100';
+      case 'border': return isDark ? 'border-zinc-800' : 'border-zinc-200';
+      case 'input': return isDark ? 'bg-black border-zinc-800 text-white' : 'bg-white border-zinc-300 text-zinc-900';
+      case 'button-secondary': return isDark ? 'bg-zinc-900 text-zinc-400 hover:text-white' : 'bg-zinc-100 text-zinc-600 hover:text-black';
+      case 'modal-bg': return isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200 shadow-2xl';
+      default: return '';
+    }
+  };
+
+  // --- PERSISTÊNCIA: CARREGAR DADOS ---
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -63,68 +93,56 @@ export default function App() {
           if (sound) setSelectedSound(sound);
         }
       } catch (e) {
-        console.error("Erro ao carregar dados do LocalStorage:", e);
+        console.error("Erro ao carregar dados:", e);
       }
     }
   }, []);
 
-  // --- PERSISTÊNCIA: SALVAR DADOS NO LOCALSTORAGE ---
+  // --- PERSISTÊNCIA: SALVAR DADOS & TEMA ---
   useEffect(() => {
     const dataToSave = {
-      topics,
-      history,
-      alarmDuration,
-      infiniteAlarm,
-      dailyGoalHours,
+      topics, history, alarmDuration, infiniteAlarm, dailyGoalHours,
       selectedSoundId: selectedSound.id
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
   }, [topics, history, alarmDuration, infiniteAlarm, dailyGoalHours, selectedSound]);
 
-  // --- RESET SEMANAL AUTOMÁTICO DE weeklyMinutes ---
+  useEffect(() => {
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
+  // --- RESET SEMANAL ---
   useEffect(() => {
     const updateWeeklyMinutes = () => {
       const now = new Date();
       const startOfCurrentWeek = new Date(now);
-      startOfCurrentWeek.setDate(now.getDate() - (now.getDay() + 1) % 7); // Semana começa no sábado (0=dom, 6=sáb)
-      startOfCurrentWeek.setHours(23, 0, 0, 0); // Reset no sábado às 23h
+      startOfCurrentWeek.setDate(now.getDate() - (now.getDay() + 1) % 7); 
+      startOfCurrentWeek.setHours(23, 0, 0, 0); 
 
       setTopics(prevTopics =>
         prevTopics.map(topic => {
           const weeklyMins = history
             .filter(h => h.topicId === topic.id && new Date(h.date) >= startOfCurrentWeek)
             .reduce((sum, h) => sum + h.minutes, 0);
-
           return { ...topic, weeklyMinutes: weeklyMins };
         })
       );
     };
-
     updateWeeklyMinutes();
-
     const interval = setInterval(() => {
       const now = new Date();
-      if (now.getDay() === 6 && now.getHours() === 23 && now.getMinutes() === 0) {
-        updateWeeklyMinutes();
-      }
-    }, 60000); // Checa a cada minuto
-
+      if (now.getDay() === 6 && now.getHours() === 23 && now.getMinutes() === 0) updateWeeklyMinutes();
+    }, 60000); 
     return () => clearInterval(interval);
   }, [history]);
 
-  // --- EXPORTAR DADOS (JSON) ---
+  // --- EXPORTAR/IMPORTAR ---
   const handleExport = () => {
     const dataToExport = {
-      topics,
-      history,
-      alarmDuration,
-      infiniteAlarm,
-      dailyGoalHours,
-      selectedSoundId: selectedSound.id,
-      exportDate: new Date().toISOString()
+      topics, history, alarmDuration, infiniteAlarm, dailyGoalHours,
+      selectedSoundId: selectedSound.id, exportDate: new Date().toISOString()
     };
-    const jsonString = JSON.stringify(dataToExport, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -135,11 +153,9 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // --- IMPORTAR DADOS (JSON) ---
   const handleImport = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -149,42 +165,32 @@ export default function App() {
         if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
         if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
         if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
-        if (data.selectedSoundId) {
-          const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
-          if (sound) setSelectedSound(sound);
-        }
-      } catch (err) {
-        console.error("Erro ao importar JSON:", err);
-      }
+      } catch (err) { console.error(err); }
     };
     reader.readAsText(file);
-    event.target.value = ''; // Reset input
+    event.target.value = ''; 
   };
 
+  // --- ÁUDIO E TIMER ---
   const initAudio = () => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
-    if (audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume();
-    }
+    if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
   };
 
-  // --- LÓGICA DO TIMER ---
   useEffect(() => {
     if (isRunning) {
       timerRef.current = setInterval(() => {
         const now = Date.now();
         const remaining = Math.max(0, Math.round((endTime - now) / 1000));
         setTimeLeft(remaining);
-
         if (remaining <= 0) {
           clearInterval(timerRef.current);
           handleComplete();
         }
       }, 1000);
     }
-
     return () => clearInterval(timerRef.current);
   }, [isRunning, endTime]);
 
@@ -192,13 +198,11 @@ export default function App() {
     initAudio();
     const ctx = audioContextRef.current;
     if (!ctx) return;
-
     alarmPlayingRef.current = true;
     let startTime = ctx.currentTime;
-    const endTime = duration === 'infinite' ? Infinity : startTime + duration;
-
+    
     const playLoop = (time) => {
-      if (!alarmPlayingRef.current || time >= endTime) {
+      if (!alarmPlayingRef.current || (duration !== 'infinite' && time >= startTime + duration)) {
         alarmPlayingRef.current = false;
         setIsAlarmPlaying(false);
         return;
@@ -219,46 +223,28 @@ export default function App() {
     playLoop(startTime);
   };
 
-  const stopAlarm = () => {
-    alarmPlayingRef.current = false;
-    setIsAlarmPlaying(false);
-  };
+  const stopAlarm = () => { alarmPlayingRef.current = false; setIsAlarmPlaying(false); };
 
   const handleComplete = () => {
     setIsRunning(false);
-    initAudio(); // Garantir que audio esteja inicializado antes do som
+    initAudio();
     setIsAlarmPlaying(true);
     playSound(selectedSound, infiniteAlarm ? 'infinite' : alarmDuration);
-
+    
     if (mode === 'focus' && activeTopic) {
       const spentMin = customTime;
       const today = new Date().toISOString().split('T')[0];
       
       const newTopics = topics.map(t => 
-        t.id === activeTopic.id 
-          ? { 
-              ...t, 
-              weeklyMinutes: (t.weeklyMinutes || 0) + spentMin,
-              totalMinutes: (t.totalMinutes || 0) + spentMin 
-            } 
-          : t
+        t.id === activeTopic.id ? { ...t, weeklyMinutes: (t.weeklyMinutes || 0) + spentMin, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
       );
-      
       const newHistoryEntry = {
-        id: Date.now(),
-        topicId: activeTopic.id,
-        topicName: activeTopic.name,
-        minutes: spentMin,
-        date: today,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        color: activeTopic.color
+        id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
+        date: today, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), color: activeTopic.color
       };
-      
-      const newHistory = [newHistoryEntry, ...history];
-      
-      setTopics(newTopics);
-      setHistory(newHistory);
 
+      setTopics(newTopics);
+      setHistory([newHistoryEntry, ...history]);
       setMode('break');
       setCustomTime(5);
       setTimeLeft(5 * 60);
@@ -274,43 +260,22 @@ export default function App() {
       const spentMin = customTime - Math.floor(timeLeft / 60);
       if (spentMin > 0) {
         const today = new Date().toISOString().split('T')[0];
-        
         const newTopics = topics.map(t => 
-          t.id === activeTopic.id 
-            ? { 
-                ...t, 
-                weeklyMinutes: (t.weeklyMinutes || 0) + spentMin,
-                totalMinutes: (t.totalMinutes || 0) + spentMin 
-              } 
-            : t
+          t.id === activeTopic.id ? { ...t, weeklyMinutes: (t.weeklyMinutes || 0) + spentMin, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
         );
-        
         const newHistoryEntry = {
-          id: Date.now(),
-          topicId: activeTopic.id,
-          topicName: activeTopic.name,
-          minutes: spentMin,
-          date: today,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          color: activeTopic.color
+          id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
+          date: today, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), color: activeTopic.color
         };
-        
-        const newHistory = [newHistoryEntry, ...history];
-        
         setTopics(newTopics);
-        setHistory(newHistory);
+        setHistory([newHistoryEntry, ...history]);
       }
       setCustomTime(Math.floor(timeLeft / 60));
     }
   };
 
   const resetAllData = () => {
-    setTopics([]);
-    setHistory([]);
-    setActiveTopic(null);
-    setTimeLeft(25 * 60);
-    setIsRunning(false);
-    setView('focus');
+    setTopics([]); setHistory([]); setActiveTopic(null); setTimeLeft(25 * 60); setIsRunning(false); setView('focus');
     localStorage.removeItem(STORAGE_KEY);
   };
 
@@ -322,10 +287,7 @@ export default function App() {
     return `${hDisplay}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const totalMinutes = topics.reduce((acc, t) => acc + (t.totalMinutes || 0), 0);
-  const totalHours = (totalMinutes / 60).toFixed(1);
-  const avgSession = history.length > 0 ? (totalMinutes / history.length).toFixed(0) : 0;
-
+  // --- ESTATÍSTICAS ---
   const statsByPeriod = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -338,11 +300,7 @@ export default function App() {
     const weekMins = history.filter(h => new Date(h.date) >= startOfWeek).reduce((acc, curr) => acc + curr.minutes, 0);
     const monthMins = history.filter(h => new Date(h.date) >= startOfMonth).reduce((acc, curr) => acc + curr.minutes, 0);
 
-    return {
-      day: (dayMins / 60).toFixed(1),
-      week: (weekMins / 60).toFixed(1),
-      month: (monthMins / 60).toFixed(1)
-    };
+    return { day: (dayMins / 60).toFixed(1), week: (weekMins / 60).toFixed(1), month: (monthMins / 60).toFixed(1) };
   }, [history]);
 
   const calendarData = useMemo(() => {
@@ -360,13 +318,10 @@ export default function App() {
 
   const currentStreak = useMemo(() => {
     let streak = 0;
-    const goalMins = 60;
+    const goalMins = 30; // Minimo 30 mins para streak contar
     for (let i = calendarData.length - 1; i >= 0; i--) {
-      if (calendarData[i].minutes >= goalMins) {
-        streak++;
-      } else {
-        break;
-      }
+      if (calendarData[i].minutes >= goalMins) streak++;
+      else break;
     }
     return streak;
   }, [calendarData]);
@@ -386,9 +341,8 @@ export default function App() {
     }
     return months;
   }, [history]);
-
+  
   const maxMonthlyHours = Math.max(...monthlyData.map(m => m.hours), 1);
-
   const topicMonthlyData = useMemo(() => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -397,76 +351,46 @@ export default function App() {
       return { ...t, monthlyMinutes: monthlyMins };
     });
   }, [topics, history]);
-
   const maxTopicMonthlyMins = Math.max(...topicMonthlyData.map(t => t.monthlyMinutes || 0), 1);
 
+  // --- RENDER ---
   return (
-    <div className={`flex flex-col h-screen transition-colors duration-1000 ${mode === 'break' ? 'bg-zinc-950' : 'bg-black'} text-zinc-400 font-sans overflow-hidden`} onClick={initAudio}>
+    <div 
+      className={`flex flex-col h-screen transition-colors duration-500 font-sans overflow-hidden ${getThemeClasses('bg')} ${getThemeClasses('text-secondary')}`} 
+      onClick={initAudio}
+    >
       <style>{`
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
-        
-        @keyframes float {
-          0% { transform: translateY(0px) opacity(0); }
-          50% { opacity: 0.5; }
-          100% { transform: translateY(-100px); opacity: 0; }
-        }
-        .particle {
-          position: absolute;
-          animation: float 3s infinite linear;
-          pointer-events: none;
-        }
-        .gradient-bg {
-          background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
-        }
-        .shadow-glow {
-          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-        }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: ${theme === 'dark' ? '#27272a' : '#d4d4d8'}; border-radius: 10px; }
       `}</style>
 
-      {/* ANIMAÇÃO DE BREAK */}
-      {mode === 'break' && isRunning && (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(20)].map((_, i) => (
-            <div 
-              key={i} 
-              className="particle text-emerald-500/20"
-              style={{ 
-                left: `${Math.random() * 100}%`, 
-                top: '100%', 
-                animationDelay: `${Math.random() * 3}s`,
-                fontSize: `${Math.random() * 20 + 10}px`
-              }}
-            >
-              <Coffee />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* NAVEGAÇÃO SUPERIOR */}
-      <header className="h-20 border-b border-zinc-900 flex items-center justify-between px-12 bg-black shrink-0 z-10">
+      {/* HEADER */}
+      <header className={`h-20 border-b flex items-center justify-between px-12 shrink-0 z-10 ${theme === 'dark' ? 'border-zinc-900 bg-black' : 'border-zinc-200 bg-white'}`}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-black">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>
             <BookOpen size={18} strokeWidth={2.5} />
           </div>
-          <span className="text-white font-bold tracking-tighter text-lg uppercase">Study</span>
+          <span className={`font-bold tracking-tighter text-lg uppercase ${getThemeClasses('text-primary')}`}>Study</span>
         </div>
         
         <nav className="flex gap-4">
           {[
-            { id: 'focus', icon: Timer, label: 'Foco' },
-            { id: 'labels', icon: Tag, label: 'Tópicos' },
-            { id: 'dashboard', icon: BarChart3, label: 'Status' },
-            { id: 'goals', icon: Target, label: 'Metas' },
+            { id: 'focus', icon: Timer, label: 'FOCUS' },
+            { id: 'labels', icon: Tag, label: 'LABELS' },
+            { id: 'dashboard', icon: BarChart3, label: 'DASHBOARD' },
+            { id: 'goals', icon: Target, label: 'GOALS' },
           ].map(item => (
             <button 
               key={item.id} 
               onClick={() => setView(item.id)} 
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${view === item.id ? 'text-white bg-zinc-900' : 'text-zinc-600 hover:text-zinc-400'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+                view === item.id 
+                  ? (theme === 'dark' ? 'text-white bg-zinc-900' : 'text-white bg-black')
+                  : (theme === 'dark' ? 'text-zinc-600 hover:text-zinc-400' : 'text-zinc-500 hover:text-black')
+              }`}
             >
               <item.icon size={16} strokeWidth={2} />
               <span className="text-[10px] font-bold uppercase tracking-widest">{item.label}</span>
@@ -474,7 +398,7 @@ export default function App() {
           ))}
         </nav>
 
-        <button onClick={() => setView('settings')} className={`p-2 rounded-lg transition-colors ${view === 'settings' ? 'text-white bg-zinc-900' : 'text-zinc-700 hover:text-zinc-400'}`}>
+        <button onClick={() => setView('settings')} className={`p-2 rounded-lg transition-colors ${view === 'settings' ? 'text-white bg-zinc-900' : (theme === 'dark' ? 'text-zinc-700 hover:text-zinc-400' : 'text-zinc-400 hover:text-black')}`}>
           <Settings size={20} />
         </button>
       </header>
@@ -482,17 +406,18 @@ export default function App() {
       <main className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="p-8 max-w-5xl mx-auto pb-24">
           
+          {/* VIEW: FOCUS */}
           {view === 'focus' && (
             <div className="flex flex-col items-center justify-center pt-8">
-              <div className="flex flex-wrap justify-center gap-2 bg-zinc-900/40 p-1.5 rounded-2xl mb-12 border border-zinc-800/50">
+              <div className={`flex flex-wrap justify-center gap-2 p-1.5 rounded-2xl mb-12 border transition-colors ${theme === 'dark' ? 'bg-zinc-900/40 border-zinc-800/50' : 'bg-zinc-100 border-zinc-200'}`}>
                 {topics.length === 0 ? (
-                  <span className="px-4 py-2 text-[10px] font-bold uppercase text-zinc-600 tracking-widest">Nenhum tópico criado</span>
+                  <span className="px-4 py-2 text-[10px] font-bold uppercase text-zinc-500 tracking-widest">Nenhum tópico criado</span>
                 ) : (
                   topics.map(t => (
                     <button 
                       key={t.id} 
                       onClick={() => !isRunning && setActiveTopic(t)} 
-                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeTopic?.id === t.id ? 'bg-white text-black shadow-lg shadow-white/5' : 'text-zinc-600 hover:text-zinc-400'}`}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeTopic?.id === t.id ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : 'text-zinc-500 hover:text-zinc-800'}`}
                     >
                       {t.name}
                     </button>
@@ -503,14 +428,14 @@ export default function App() {
               <div className="flex flex-col items-center">
                 <span 
                   className={`text-[10px] font-black uppercase tracking-[0.4em] mb-4 transition-colors`}
-                  style={{ color: mode === 'break' ? '#10B981' : (activeTopic?.color || '#ffffff44') }}
+                  style={{ color: mode === 'break' ? '#10B981' : (activeTopic?.color || (theme === 'dark' ? '#52525b' : '#a1a1aa')) }}
                 >
                   {mode === 'break' ? 'Tempo de Descanso' : (activeTopic?.name || 'Selecione um tópico')}
                 </span>
                 
                 <button 
                   onClick={() => { if (!isRunning) { setTempInputValue(customTime.toString()); setModalType('editTime'); } }}
-                  className={`text-[10rem] md:text-[12rem] font-light tracking-tighter tabular-nums leading-none cursor-pointer transition-all ${mode === 'break' ? 'text-emerald-400' : 'text-white'} hover:opacity-80`}
+                  className={`text-[10rem] md:text-[12rem] font-light tracking-tighter tabular-nums leading-none cursor-pointer transition-all ${mode === 'break' ? 'text-emerald-500' : getThemeClasses('text-primary')} hover:opacity-80`}
                 >
                   {formatTime(timeLeft)}
                 </button>
@@ -522,7 +447,11 @@ export default function App() {
                         <button 
                           key={m} 
                           onClick={() => { setCustomTime(m); setTimeLeft(m * 60); }} 
-                          className={`text-[9px] font-black uppercase tracking-widest py-2 px-4 rounded-lg border transition-all ${customTime === m ? 'text-white border-zinc-500 bg-zinc-900' : 'text-zinc-700 border-zinc-900 hover:border-zinc-800'}`}
+                          className={`text-[9px] font-black uppercase tracking-widest py-2 px-4 rounded-lg border transition-all ${
+                            customTime === m 
+                              ? (theme === 'dark' ? 'text-white border-zinc-500 bg-zinc-900' : 'text-white border-black bg-black')
+                              : (theme === 'dark' ? 'text-zinc-700 border-zinc-900' : 'text-zinc-400 border-zinc-200 hover:border-zinc-400')
+                          }`}
                         >
                           {m >= 60 ? `${m/60}H` : `${m} MIN`}
                         </button>
@@ -532,13 +461,13 @@ export default function App() {
                     <div className="flex gap-4">
                       <button 
                         onClick={() => { setMode('focus'); setCustomTime(25); setTimeLeft(25 * 60); }}
-                        className={`flex items-center gap-2 px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] border transition-all ${mode === 'focus' ? 'bg-white text-black border-white' : 'text-zinc-700 border-zinc-900 hover:border-zinc-700'}`}
+                        className={`flex items-center gap-2 px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] border transition-all ${mode === 'focus' ? (theme === 'dark' ? 'bg-white text-black border-white' : 'bg-black text-white border-black') : 'text-zinc-500 border-transparent hover:border-zinc-500'}`}
                       >
                         <Brain size={14} /> Focus
                       </button>
                       <button 
                         onClick={() => { setMode('break'); setCustomTime(5); setTimeLeft(5 * 60); }}
-                        className={`flex items-center gap-2 px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] border transition-all ${mode === 'break' ? 'bg-emerald-500 text-black border-emerald-500' : 'text-zinc-700 border-zinc-900 hover:border-zinc-700'}`}
+                        className={`flex items-center gap-2 px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] border transition-all ${mode === 'break' ? 'bg-emerald-500 text-white border-emerald-500' : 'text-zinc-500 border-transparent hover:border-zinc-500'}`}
                       >
                         <Coffee size={14} /> Break
                       </button>
@@ -551,23 +480,22 @@ export default function App() {
                 <button 
                   disabled={mode === 'focus' && !activeTopic}
                   onClick={() => { 
-                    initAudio(); 
-                    if (isRunning) {
-                      handlePause();
-                    } else {
-                      setEndTime(Date.now() + timeLeft * 1000);
-                    }
-                    setIsRunning(!isRunning); 
+                    initAudio();
+                    if (isRunning) { handlePause(); } else { setEndTime(Date.now() + timeLeft * 1000); }
+                    setIsRunning(!isRunning);
                   }} 
-                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-20 disabled:grayscale ${isRunning ? 'bg-zinc-900 text-white border border-zinc-800' : (mode === 'break' ? 'bg-emerald-500 text-black' : 'bg-white text-black')}`}
+                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-20 disabled:grayscale border ${
+                    isRunning 
+                      ? (theme === 'dark' ? 'bg-zinc-900 text-white border-zinc-800' : 'bg-white text-black border-zinc-200 shadow-sm') 
+                      : (mode === 'break' ? 'bg-emerald-500 text-white border-emerald-500' : (theme === 'dark' ? 'bg-white text-black border-white' : 'bg-black text-white border-black'))
+                  }`}
                 >
                   {isRunning ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
                 </button>
-                <button onClick={() => { setIsRunning(false); setTimeLeft(customTime * 60); setEndTime(null); }} className="text-zinc-800 hover:text-white p-3 transition-colors">
+                <button onClick={() => { setIsRunning(false); setTimeLeft(customTime * 60); setEndTime(null); }} className={`p-3 transition-colors ${theme === 'dark' ? 'text-zinc-800 hover:text-white' : 'text-zinc-300 hover:text-black'}`}>
                   <RotateCcw size={24} />
                 </button>
               </div>
-
               {isAlarmPlaying && (
                 <button 
                   onClick={stopAlarm}
@@ -579,24 +507,21 @@ export default function App() {
             </div>
           )}
 
+          {/* VIEW: LABELS/TÓPICOS */}
           {view === 'labels' && (
              <div className="max-w-xl mx-auto">
-               <h2 className="text-2xl font-bold text-white mb-8 uppercase text-xs tracking-widest">Tópicos e Cores</h2>
                <div className="space-y-3 mb-8">
                  {topics.map(t => (
-                   <div key={t.id} className="flex items-center justify-between p-4 bg-zinc-900/20 border border-zinc-900 rounded-2xl group">
+                   <div key={t.id} className={`flex items-center justify-between p-4 border rounded-2xl group ${getThemeClasses('card')}`}>
                      <div className="flex items-center gap-4">
                        <button 
                          onClick={() => setEditingTopic(t)}
-                         className="w-5 h-5 rounded-full ring-2 ring-zinc-800 ring-offset-2 ring-offset-black transition-transform hover:scale-110" 
+                         className="w-5 h-5 rounded-full ring-2 ring-offset-2 transition-transform hover:scale-110 ring-zinc-300 ring-offset-white dark:ring-zinc-800 dark:ring-offset-black" 
                          style={{ backgroundColor: t.color }} 
                        />
-                       <span className="text-white text-sm font-bold uppercase tracking-wide">{t.name}</span>
+                       <span className={`text-sm font-bold uppercase tracking-wide ${getThemeClasses('text-primary')}`}>{t.name}</span>
                      </div>
-                     <button onClick={() => {
-                        const updated = topics.filter(x => x.id !== t.id);
-                        setTopics(updated);
-                     }} className="text-zinc-800 hover:text-red-500 transition-colors">
+                     <button onClick={() => setTopics(topics.filter(x => x.id !== t.id))} className="text-zinc-400 hover:text-red-500 transition-colors">
                        <X size={18} />
                      </button>
                    </div>
@@ -606,12 +531,12 @@ export default function App() {
                  <input 
                    type="text" 
                    placeholder="NOVO TÓPICO..."
-                   className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 text-white outline-none focus:border-zinc-600 text-[10px] font-bold tracking-widest uppercase"
+                   className={`flex-1 border rounded-xl p-4 outline-none focus:border-zinc-500 text-[10px] font-bold tracking-widest uppercase ${getThemeClasses('input')}`}
                    onKeyDown={(e) => { 
                      if(e.key === 'Enter' && e.target.value) { 
                        const updated = [...topics, { id: Date.now(), name: e.target.value, color: COLOR_OPTIONS[Math.floor(Math.random()*COLOR_OPTIONS.length)], weeklyMinutes: 0, totalMinutes: 0, goalHours: 10, hasGoal: true }];
                        setTopics(updated); 
-                       e.target.value = ''; 
+                       e.target.value = '';
                      }
                    }}
                  />
@@ -619,222 +544,137 @@ export default function App() {
              </div>
           )}
 
+          {/* VIEW: DASHBOARD */}
           {view === 'dashboard' && (
             <div className="space-y-12">
               <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold text-white tracking-tighter">Status</h2>
-                <div className="px-4 py-1.5 bg-zinc-900 rounded-full text-[10px] font-bold text-zinc-500 uppercase tracking-widest border border-zinc-800">
-                  Resumo Geral
-                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-zinc-900/30 border border-zinc-900 p-6 rounded-[2rem] flex items-start gap-4">
+                <div className={`border p-6 rounded-[2rem] flex items-start gap-4 ${getThemeClasses('card')}`}>
                   <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
                     <Activity size={20} />
                   </div>
                   <div className="flex-1 space-y-1">
-                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-0.5">
-                      <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Este Mês</span>
-                      <span className="text-[11px] font-bold text-white">{statsByPeriod.month}h</span>
+                    <div className={`flex justify-between items-center border-b pb-0.5 ${getThemeClasses('border')}`}>
+                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">THIS MONTH</span>
+                      <span className={`text-[11px] font-bold ${getThemeClasses('text-primary')}`}>{statsByPeriod.month}h</span>
                     </div>
-                    <div className="flex justify-between items-center border-b border-zinc-800/50 pb-0.5">
-                      <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Esta Semana</span>
-                      <span className="text-[11px] font-bold text-white">{statsByPeriod.week}h</span>
+                    <div className={`flex justify-between items-center border-b pb-0.5 ${getThemeClasses('border')}`}>
+                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">THIS WEEK</span>
+                      <span className={`text-[11px] font-bold ${getThemeClasses('text-primary')}`}>{statsByPeriod.week}h</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Hoje</span>
+                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">TODAY</span>
                       <span className="text-[11px] font-bold text-emerald-500">{statsByPeriod.day}h</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-zinc-900/30 border border-zinc-900 p-6 rounded-[2rem] flex items-start gap-4">
+                <div className={`border p-6 rounded-[2rem] flex items-start gap-4 ${getThemeClasses('card')}`}>
                   <div className="w-10 h-10 bg-orange-500/10 rounded-xl flex items-center justify-center text-orange-500">
                     <Flame size={20} />
                   </div>
                   <div className="flex-1">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">Streak Atual</span>
-                    <h3 className="text-4xl font-bold text-white tabular-nums">{currentStreak} dias</h3>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-0.5">STREAK</span>
+                    <h3 className={`text-4xl font-bold tabular-nums ${getThemeClasses('text-primary')}`}>{currentStreak} </h3>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
+              <div className={`border rounded-[2.5rem] p-10 ${getThemeClasses('card')}`}>
                 <div className="flex justify-between items-center mb-8">
-                  <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <TrendingUp size={18} className="text-zinc-600" /> Consistência Diária
+                  <h3 className={`font-bold text-sm uppercase tracking-widest flex items-center gap-3 ${getThemeClasses('text-primary')}`}>
+                    <TrendingUp size={18} className="text-zinc-500" /> CONSISTENCY
                   </h3>
                 </div>
                 <div className="flex gap-2 justify-center">
                   {calendarData.map((day, i) => {
                     const hasStudy = day.minutes > 0;
-                    const goalMins = dailyGoalHours * 60;
-                    let intensity = 0.04;
-                    let baseColor = '16, 185, 129'; // Verde
-
-                    if (hasStudy) {
-                      if (day.minutes <= 15) intensity = 0.15;
-                      else if (day.minutes <= 45) intensity = 0.4;
-                      else if (day.minutes <= 90) intensity = 0.7;
-                      else intensity = 0.95;
-
-                      if (goalMins > 0) {
-                        const progress = Math.min(day.minutes / goalMins, 1);
-                        intensity = progress * 0.95;
-                        if (day.minutes >= goalMins) {
-                          baseColor = '168, 85, 247'; // Roxo
-                        }
-                      }
-                    }
-
                     return (
                       <div 
                         key={i} 
                         title={`${day.date}: ${(day.minutes / 60).toFixed(1)}h`}
                         className="w-4 h-16 rounded-full transition-all hover:scale-y-110"
                         style={{ 
-                          backgroundColor: hasStudy ? `rgba(${baseColor}, ${intensity})` : 'rgba(100, 100, 100, 0.12)',
-                          border: !hasStudy ? '1px dashed rgba(100,100,100,0.3)' : 'none'
+                          backgroundColor: hasStudy ? (day.minutes > 60 ? '#10B981' : `rgba(16, 185, 129, ${0.2 + (day.minutes/60)*0.8})`) : (theme === 'dark' ? '#27272a' : '#f4f4f5'),
+                          border: !hasStudy ? '1px dashed' : 'none',
+                          borderColor: theme === 'dark' ? '#3f3f46' : '#e4e4e7'
                         }}
                       />
                     );
                   })}
                 </div>
-                <div className="flex justify-between mt-4 px-2 text-[9px] font-bold text-zinc-700 uppercase tracking-widest">
-                  <span>30 dias atrás</span>
-                  <span>Hoje</span>
-                </div>
               </div>
 
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
-                <div className="flex justify-between items-center mb-12">
-                  <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <BarChart3 size={18} className="text-zinc-600" /> Horas por Tópico
-                  </h3>
-                </div>
-                <div className="flex items-end justify-between h-48 gap-4 px-4">
+              <div className={`border rounded-[2.5rem] p-10 ${getThemeClasses('card')}`}>
+                 <h3 className={`font-bold text-sm uppercase tracking-widest flex items-center gap-3 mb-12 ${getThemeClasses('text-primary')}`}>
+                   <BarChart3 size={18} className="text-zinc-500" /> HOURS BY SUBJECT
+                 </h3>
+                 <div className="flex items-end justify-between h-48 gap-4 px-4">
                   {topics.length === 0 ? (
-                    <div className="w-full flex items-center justify-center text-zinc-800 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
+                    <div className="w-full text-center text-zinc-400 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
                   ) : (
-                    topicMonthlyData.map(t => {
-                      const height = ((t.monthlyMinutes || 0) / maxTopicMonthlyMins) * 100;
-                      return (
-                        <div key={t.id} className="flex-1 flex flex-col items-center group">
-                          <div className="relative w-full flex justify-center flex-1">
-                             <div 
-                               className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80"
-                               style={{ height: `${height}%`, backgroundColor: t.color, boxShadow: `0 0 40px -10px ${t.color}44` }}
-                             />
-                          </div>
-                          <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{t.name}</span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-zinc-900/10 border border-zinc-900 rounded-[2.5rem] p-10">
-                <div className="flex justify-between items-center mb-12">
-                  <h3 className="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                    <BarChart2 size={18} className="text-zinc-600" /> Progresso Mensal
-                  </h3>
-                </div>
-                <div className="flex items-end justify-between h-48 gap-4 px-4">
-                  {monthlyData.map((m, i) => {
-                    const height = (m.hours / maxMonthlyHours) * 100;
-                    const prevHours = i < monthlyData.length - 1 ? monthlyData[i + 1].hours : m.hours;
-                    const diff = m.hours - prevHours;
-                    const trendColor = diff > 0 ? 'text-emerald-500' : diff < 0 ? 'text-red-500' : 'text-zinc-500';
-                    const trendIcon = diff > 0 ? ArrowUp : diff < 0 ? ArrowDown : null;
-
-                    return (
-                      <div key={i} className="flex-1 flex flex-col items-center group">
+                    topicMonthlyData.map(t => (
+                      <div key={t.id} className="flex-1 flex flex-col items-center group">
                         <div className="relative w-full flex justify-center flex-1">
-                          <div 
-                            className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80"
-                            style={{ height: `${height}%`, background: 'linear-gradient(to top, #10B981, #3B82F6)', boxShadow: `0 0 40px -10px rgba(16,185,129,0.3)` }}
-                          />
+                           <div className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80" style={{ height: `${((t.monthlyMinutes||0)/maxTopicMonthlyMins)*100}%`, backgroundColor: t.color }} />
                         </div>
-                        <div className="mt-2 flex items-center gap-1">
-                          <span className="text-[8px] font-bold uppercase tracking-tighter text-zinc-600 group-hover:text-white transition-colors">{m.month}</span>
-                          {trendIcon && <trendIcon size={10} className={trendColor} />}
-                        </div>
+                        <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-500">{t.name}</span>
                       </div>
-                    );
-                  })}
-                </div>
+                    ))
+                  )}
+                 </div>
               </div>
             </div>
           )}
 
+          {/* VIEW: GOALS */}
           {view === 'goals' && (
             <div className="max-w-2xl mx-auto space-y-6">
-              <h2 className="text-2xl font-bold text-white uppercase text-xs tracking-widest mb-8">Objetivos Semanais</h2>
-              {topics.length === 0 && <div className="text-center py-20 border border-dashed border-zinc-900 rounded-3xl text-zinc-800 text-[10px] font-black uppercase tracking-widest">Crie tópicos primeiro</div>}
+              <h2 className={`text-2xl font-bold uppercase text-xs tracking-widest mb-8 ${getThemeClasses('text-primary')}`}>WEEKLY GOALS</h2>
               {topics.map(topic => {
                 const hoursDone = (topic.weeklyMinutes || 0) / 60;
                 const progress = topic.hasGoal ? (hoursDone / topic.goalHours) * 100 : 0;
                 return (
-                  <div key={topic.id} className="bg-zinc-900/30 border border-zinc-900 rounded-3xl p-8 relative overflow-hidden group">
-                    {!topic.hasGoal && <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={() => {
-                            const updated = topics.map(t => t.id === topic.id ? {...t, hasGoal: true} : t);
-                            setTopics(updated);
-                        }}
-                        className="bg-white text-black px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest"
-                      >
-                        Ativar Meta
-                      </button>
+                  <div key={topic.id} className={`border rounded-3xl p-8 relative overflow-hidden group ${getThemeClasses('card')}`}>
+                    {!topic.hasGoal && <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white/10 backdrop-blur-sm">
+                      <button onClick={() => setTopics(topics.map(t => t.id === topic.id ? {...t, hasGoal: true} : t))} className="bg-black text-white px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-xl">Ativar Meta</button>
                     </div>}
                     
                     <div className="flex justify-between items-start mb-6">
                       <div className="flex flex-col gap-1">
-                        <span className="text-white font-bold text-lg tracking-tight uppercase">{topic.name}</span>
+                        <span className={`font-bold text-lg tracking-tight uppercase ${getThemeClasses('text-primary')}`}>{topic.name}</span>
                         {topic.hasGoal ? (
                           <div className="flex items-center gap-2">
                             <input 
-                              type="number" 
-                              value={topic.goalHours}
-                              onChange={(e) => {
-                                const updated = topics.map(t => t.id === topic.id ? {...t, goalHours: parseInt(e.target.value) || 0} : t);
-                                setTopics(updated);
-                              }}
-                              className="bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-[11px] text-white w-14 outline-none focus:border-zinc-500"
+                              type="number" value={topic.goalHours}
+                              onChange={(e) => setTopics(topics.map(t => t.id === topic.id ? {...t, goalHours: parseInt(e.target.value) || 0} : t))}
+                              className={`border rounded px-2 py-1 text-[11px] w-14 outline-none focus:border-zinc-500 ${getThemeClasses('input')}`}
                             />
-                            <span className="text-zinc-600 text-[9px] font-bold uppercase">Meta de Horas</span>
+                            <span className="text-zinc-500 text-[9px] font-bold uppercase">Meta de Horas</span>
                           </div>
-                        ) : (
-                          <span className="text-zinc-700 text-[9px] font-bold uppercase">Sem Meta Definida</span>
-                        )}
+                        ) : <span className="text-zinc-500 text-[9px] font-bold uppercase">Sem Meta</span>}
                       </div>
-                      <div className="text-right">
-                        <span className="text-zinc-500 text-[10px] font-bold block mb-1 uppercase tracking-tighter">{hoursDone.toFixed(1)}H FEITO</span>
-                        {topic.hasGoal && <span className="text-white font-bold text-3xl tracking-tighter tabular-nums">{Math.min(progress, 100).toFixed(0)}%</span>}
+                      <div className="text-right flex items-start gap-2">
+                        {topic.hasGoal && (
+                          <button 
+                            onClick={() => setTopics(topics.map(t => t.id === topic.id ? {...t, hasGoal: false} : t))}
+                            className="text-zinc-400 hover:text-red-500 transition-colors"
+                          >
+                            <X size={18} />
+                          </button>
+                        )}
+                        <div>
+                          <span className="text-zinc-500 text-[10px] font-bold block mb-1 uppercase tracking-tighter">{hoursDone.toFixed(1)}H FEITO</span>
+                          {topic.hasGoal && <span className={`font-bold text-3xl tracking-tighter tabular-nums ${getThemeClasses('text-primary')}`}>{Math.min(progress, 100).toFixed(0)}%</span>}
+                        </div>
                       </div>
                     </div>
-                    
                     {topic.hasGoal && (
-                      <div className="w-full bg-black h-2 rounded-full overflow-hidden border border-zinc-900">
-                        <div 
-                          className="h-full transition-all duration-1000 ease-out" 
-                          style={{ width: `${Math.min(progress, 100)}%`, backgroundColor: topic.color }} 
-                        />
+                      <div className={`w-full h-2 rounded-full overflow-hidden border ${theme === 'dark' ? 'bg-black border-zinc-900' : 'bg-zinc-100 border-zinc-200'}`}>
+                        <div className="h-full transition-all duration-1000 ease-out" style={{ width: `${Math.min(progress, 100)}%`, backgroundColor: topic.color }} />
                       </div>
-                    )}
-
-                    {topic.hasGoal && (
-                      <button 
-                        onClick={() => {
-                            const updated = topics.map(t => t.id === topic.id ? {...t, hasGoal: false} : t);
-                            setTopics(updated);
-                        }}
-                        className="mt-4 text-[9px] font-bold text-zinc-700 hover:text-red-900 uppercase tracking-widest transition-colors"
-                      >
-                        Remover Objetivo
-                      </button>
                     )}
                   </div>
                 );
@@ -842,123 +682,99 @@ export default function App() {
             </div>
           )}
 
+          {/* VIEW: SETTINGS */}
           {view === 'settings' && (
             <div className="max-w-md mx-auto space-y-12">
-              {/* BACKUP DE DADOS */}
               <section>
-                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                <h2 className={`font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2 ${getThemeClasses('text-primary')}`}>
+                  <Sun size={16} /> Aparência
+                </h2>
+                <div className={`p-2 rounded-2xl border grid grid-cols-2 gap-2 ${getThemeClasses('card')}`}>
+                   <button 
+                     onClick={() => setTheme('light')}
+                     className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${theme === 'light' ? 'bg-white text-black shadow-md border border-zinc-200' : 'text-zinc-400 hover:text-zinc-600'}`}
+                   >
+                     <Sun size={14} /> Light
+                   </button>
+                   <button 
+                     onClick={() => setTheme('dark')}
+                     className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${theme === 'dark' ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-400 hover:text-zinc-600'}`}
+                   >
+                     <Moon size={14} /> Dark
+                   </button>
+                </div>
+              </section>
+
+              <section>
+                <h2 className={`font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2 ${getThemeClasses('text-primary')}`}>
                   <FileJson size={16} /> Backup de Dados
                 </h2>
                 <div className="grid grid-cols-2 gap-3">
-                  <button 
-                    onClick={handleExport}
-                    className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-500 transition-all text-zinc-400 hover:text-white"
-                  >
-                    <Download size={20} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Exportar</span>
+                  <button onClick={handleExport} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border transition-all ${getThemeClasses('button-secondary')} ${getThemeClasses('border')}`}>
+                    <Download size={20} /> <span className="text-[10px] font-bold uppercase tracking-widest">Exportar</span>
                   </button>
-                  <button 
-                    onClick={() => fileInputRef.current.click()}
-                    className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-500 transition-all text-zinc-400 hover:text-white"
-                  >
-                    <Upload size={20} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Importar</span>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      className="hidden" 
-                      accept=".json" 
-                      onChange={handleImport}
-                    />
+                  <button onClick={() => fileInputRef.current.click()} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border transition-all ${getThemeClasses('button-secondary')} ${getThemeClasses('border')}`}>
+                    <Upload size={20} /> <span className="text-[10px] font-bold uppercase tracking-widest">Importar</span>
+                    <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImport} />
                   </button>
                 </div>
               </section>
 
               <section>
-                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
+                <h2 className={`font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2 ${getThemeClasses('text-primary')}`}>
                   <Volume2 size={16} /> Som do Alerta
                 </h2>
                 <div className="grid gap-2">
                   {SOUND_LIBRARY.map(sound => (
                     <button 
-                      key={sound.id}
-                      onClick={() => { setSelectedSound(sound); playSound(sound, 2); }}
-                      className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${selectedSound.id === sound.id ? 'bg-zinc-900 border-zinc-600 text-white shadow-xl' : 'bg-transparent border-zinc-900 text-zinc-700 hover:border-zinc-800'}`}
+                      key={sound.id} onClick={() => { setSelectedSound(sound); playSound(sound, 2); }}
+                      className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${selectedSound.id === sound.id ? (theme === 'dark' ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-black border-black text-white') : (theme === 'dark' ? 'bg-transparent border-zinc-900 text-zinc-500' : 'bg-transparent border-zinc-200 text-zinc-500')}`}
                     >
                       <span className="text-[10px] font-bold uppercase tracking-widest">{sound.name}</span>
-                      <Volume2 size={14} className={selectedSound.id === sound.id ? "text-white" : "text-zinc-800"} />
+                      <Volume2 size={14} className={selectedSound.id === sound.id ? "text-white" : "text-zinc-500"} />
                     </button>
                   ))}
                 </div>
               </section>
 
               <section>
-                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
-                  <BellRing size={16} /> Duração do Alarme
+                <h2 className={`font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2 ${getThemeClasses('text-primary')}`}>
+                  <BellRing size={16} /> Configurações Gerais
                 </h2>
-                <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                <div className={`p-6 rounded-2xl border flex items-center justify-between mb-4 ${getThemeClasses('card')}`}>
                   <div className="flex flex-col">
-                    <span className="text-white text-xs font-bold uppercase tracking-widest">Tempo de Toque</span>
-                    <span className="text-zinc-600 text-[9px] font-bold uppercase">Segundos após o término</span>
+                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Tempo do Alarme</span>
+                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Segundos</span>
                   </div>
-                  <input 
-                    type="number" 
-                    value={alarmDuration}
-                    onChange={(e) => {
-                        const val = Math.max(1, parseInt(e.target.value) || 1);
-                        setAlarmDuration(val);
-                    }}
-                    className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
-                  />
+                  <input type="number" value={alarmDuration} onChange={(e) => setAlarmDuration(Math.max(1, parseInt(e.target.value)||1))} className={`border rounded-xl px-4 py-2 w-20 text-center font-bold outline-none ${getThemeClasses('input')}`} />
                 </div>
-              </section>
-
-              <section>
-                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
-                  <BellRing size={16} /> Alarme Contínuo
-                </h2>
-                <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                <div className={`p-6 rounded-2xl border flex items-center justify-between mb-4 ${getThemeClasses('card')}`}>
                   <div className="flex flex-col">
-                    <span className="text-white text-xs font-bold uppercase tracking-widest">Toque Indefinido</span>
-                    <span className="text-zinc-600 text-[9px] font-bold uppercase">Até parar manualmente</span>
+                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Alarme Infinito</span>
+                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Tocar até parar manualmente</span>
                   </div>
                   <button 
                     onClick={() => setInfiniteAlarm(!infiniteAlarm)}
-                    className={`w-12 h-6 rounded-full p-1 transition-colors ${infiniteAlarm ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                    className={`w-20 h-8 rounded-full flex items-center p-1 transition-all ${infiniteAlarm ? 'bg-emerald-500 justify-end' : 'bg-zinc-500 justify-start'}`}
                   >
-                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${infiniteAlarm ? 'translate-x-6' : 'translate-x-0'}`} />
+                    <div className="w-6 h-6 bg-white rounded-full shadow-md" />
                   </button>
                 </div>
-              </section>
-
-              <section>
-                <h2 className="text-white font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2">
-                  <Target size={16} /> Meta Diária
-                </h2>
-                <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-900 flex items-center justify-between">
+                <div className={`p-6 rounded-2xl border flex items-center justify-between ${getThemeClasses('card')}`}>
                   <div className="flex flex-col">
-                    <span className="text-white text-xs font-bold uppercase tracking-widest">Horas por Dia</span>
-                    <span className="text-zinc-600 text-[9px] font-bold uppercase">Defina 0 para desativar</span>
+                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Meta Diária</span>
+                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Horas</span>
                   </div>
-                  <input 
-                    type="number" 
-                    value={dailyGoalHours}
-                    min={0}
-                    onChange={(e) => {
-                      const val = Math.max(0, parseInt(e.target.value) || 0);
-                      setDailyGoalHours(val);
-                    }}
-                    className="bg-black border border-zinc-800 rounded-xl px-4 py-2 w-20 text-center text-white font-bold outline-none"
-                  />
+                  <input type="number" value={dailyGoalHours} onChange={(e) => setDailyGoalHours(Math.max(0, parseInt(e.target.value)||0))} className={`border rounded-xl px-4 py-2 w-20 text-center font-bold outline-none ${getThemeClasses('input')}`} />
                 </div>
               </section>
 
-              <section className="pt-12 border-t border-zinc-900">
+              <section className={`pt-12 border-t ${getThemeClasses('border')}`}>
                 <button 
-                  onClick={() => { if(confirm("Deseja apagar todos os seus tópicos e histórico?")) resetAllData(); }}
-                  className="w-full flex items-center justify-center gap-3 p-5 rounded-2xl border border-red-900/30 text-red-500 hover:bg-red-500/10 transition-colors font-bold text-[10px] uppercase tracking-widest"
+                  onClick={() => { if(confirm("Apagar tudo?")) resetAllData(); }}
+                  className="w-full flex items-center justify-center gap-3 p-5 rounded-2xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors font-bold text-[10px] uppercase tracking-widest"
                 >
-                  <Trash2 size={16} /> Apagar Tudo (Reset)
+                  <Trash2 size={16} /> Resetar App
                 </button>
               </section>
             </div>
@@ -966,52 +782,38 @@ export default function App() {
         </div>
       </main>
 
-      {/* MODAL EDIÇÃO TEMPO */}
+      {/* MODAL TEMPO */}
       {modalType === 'editTime' && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm px-6">
-          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2rem] w-full max-w-xs text-center">
-            <h3 className="text-white font-bold mb-6 uppercase text-[10px] tracking-widest opacity-40">Definir Minutos</h3>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-6">
+          <div className={`border p-8 rounded-[2rem] w-full max-w-xs text-center ${getThemeClasses('modal-bg')}`}>
+            <h3 className={`font-bold mb-6 uppercase text-[10px] tracking-widest opacity-40 ${getThemeClasses('text-primary')}`}>Definir Minutos</h3>
             <input 
               autoFocus type="number" value={tempInputValue} onChange={(e) => setTempInputValue(e.target.value)}
-              className="w-full bg-black border border-zinc-800 rounded-2xl p-6 text-white mb-6 text-center outline-none font-bold text-5xl tracking-tighter"
+              className={`w-full border rounded-2xl p-6 mb-6 text-center outline-none font-bold text-5xl tracking-tighter ${getThemeClasses('input')}`}
             />
             <div className="flex gap-3">
-              <button onClick={() => setModalType(null)} className="flex-1 py-4 text-zinc-600 font-bold text-[10px] uppercase tracking-widest">Sair</button>
-              <button 
-                onClick={() => {
-                  const val = parseInt(tempInputValue);
-                  if(!isNaN(val) && val > 0) { setCustomTime(val); setTimeLeft(val * 60); }
-                  setModalType(null);
-                }}
-                className="flex-1 py-4 bg-white text-black rounded-2xl font-bold text-[10px] uppercase tracking-widest"
-              >
-                Salvar
-              </button>
+              <button onClick={() => setModalType(null)} className="flex-1 py-4 text-zinc-500 font-bold text-[10px] uppercase tracking-widest hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors">Sair</button>
+              <button onClick={() => { const val = parseInt(tempInputValue); if(!isNaN(val) && val > 0) { setCustomTime(val); setTimeLeft(val * 60); } setModalType(null); }} className={`flex-1 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>Salvar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL EDIÇÃO COR TÓPICO */}
+      {/* MODAL COR */}
       {editingTopic && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm px-6">
-          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2rem] w-full max-w-xs">
-            <h3 className="text-white font-bold mb-6 uppercase text-[10px] tracking-widest text-center opacity-40">Mudar Cor: {editingTopic.name}</h3>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-6">
+          <div className={`border p-8 rounded-[2rem] w-full max-w-xs ${getThemeClasses('modal-bg')}`}>
+            <h3 className={`font-bold mb-6 uppercase text-[10px] tracking-widest text-center opacity-40 ${getThemeClasses('text-primary')}`}>Cor: {editingTopic.name}</h3>
             <div className="grid grid-cols-4 gap-3 mb-8">
               {COLOR_OPTIONS.map(c => (
                 <button 
-                  key={c}
-                  onClick={() => {
-                    const updated = topics.map(t => t.id === editingTopic.id ? {...t, color: c} : t);
-                    setTopics(updated);
-                    setEditingTopic(null);
-                  }}
-                  className="aspect-square rounded-full border-2 border-zinc-800 transition-transform hover:scale-125"
+                  key={c} onClick={() => { setTopics(topics.map(t => t.id === editingTopic.id ? {...t, color: c} : t)); setEditingTopic(null); }}
+                  className="aspect-square rounded-full border-2 border-transparent hover:scale-125 transition-transform shadow-sm"
                   style={{ backgroundColor: c }}
                 />
               ))}
             </div>
-            <button onClick={() => setEditingTopic(null)} className="w-full py-4 text-zinc-600 font-bold text-[10px] uppercase tracking-widest">Fechar</button>
+            <button onClick={() => setEditingTopic(null)} className="w-full py-4 text-zinc-500 font-bold text-[10px] uppercase tracking-widest">Fechar</button>
           </div>
         </div>
       )}
