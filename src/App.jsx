@@ -545,10 +545,9 @@ export default function App() {
           )}
 
           {/* VIEW: DASHBOARD */}
-          {view === 'dashboard' && (
-            <div className="space-y-12">
-              <div className="flex justify-between items-center">
-              </div>
+{view === 'dashboard' && (
+            <div className="space-y-6"> {/* 3) Espaçamento reduzido de 12 para 6 */}
+              {/* 3) Removida a div vazia que causava espaço extra no topo */}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className={`border p-6 rounded-[2rem] flex items-start gap-4 ${getThemeClasses('card')}`}>
@@ -588,16 +587,26 @@ export default function App() {
                     <TrendingUp size={18} className="text-zinc-500" /> CONSISTENCY
                   </h3>
                 </div>
-                <div className="flex gap-2 justify-center">
+                <div className="flex gap-2 justify-center flex-wrap">
                   {calendarData.map((day, i) => {
-                    const hasStudy = day.minutes > 0;
+                    // 2) Lógica corrigida para opacidade baseada na meta e cor roxa
+                    const minutes = day.minutes;
+                    const goalMins = dailyGoalHours * 60; // Meta diária em minutos
+                    const hasStudy = minutes > 0;
+                    const reachedGoal = minutes >= goalMins;
+                    // Intensidade de 0.1 a 1.0 baseada no quão perto está da meta
+                    const intensity = hasStudy ? Math.min(0.15 + (minutes / goalMins) * 0.85, 1) : 0;
+
                     return (
                       <div 
                         key={i} 
-                        title={`${day.date}: ${(day.minutes / 60).toFixed(1)}h`}
+                        title={`${day.date}: ${(minutes / 60).toFixed(1)}h`}
                         className="w-4 h-16 rounded-full transition-all hover:scale-y-110"
                         style={{ 
-                          backgroundColor: hasStudy ? (day.minutes > 60 ? '#10B981' : `rgba(16, 185, 129, ${0.2 + (day.minutes/60)*0.8})`) : (theme === 'dark' ? '#27272a' : '#f4f4f5'),
+                          // Se bateu a meta: Roxo (#8B5CF6). Se não: Verde (#10B981) com opacidade variável
+                          backgroundColor: reachedGoal 
+                            ? '#8B5CF6' 
+                            : (hasStudy ? `rgba(16, 185, 129, ${intensity})` : (theme === 'dark' ? '#27272a' : '#f4f4f5')),
                           border: !hasStudy ? '1px dashed' : 'none',
                           borderColor: theme === 'dark' ? '#3f3f46' : '#e4e4e7'
                         }}
@@ -609,20 +618,40 @@ export default function App() {
 
               <div className={`border rounded-[2.5rem] p-10 ${getThemeClasses('card')}`}>
                  <h3 className={`font-bold text-sm uppercase tracking-widest flex items-center gap-3 mb-12 ${getThemeClasses('text-primary')}`}>
-                   <BarChart3 size={18} className="text-zinc-500" /> HOURS BY SUBJECT
+                    <BarChart3 size={18} className="text-zinc-500" /> HOURS BY SUBJECT
                  </h3>
                  <div className="flex items-end justify-between h-48 gap-4 px-4">
                   {topics.length === 0 ? (
                     <div className="w-full text-center text-zinc-400 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
                   ) : (
-                    topicMonthlyData.map(t => (
-                      <div key={t.id} className="flex-1 flex flex-col items-center group">
-                        <div className="relative w-full flex justify-center flex-1">
-                           <div className="absolute bottom-0 w-8 rounded-full transition-all duration-1000 group-hover:opacity-80" style={{ height: `${((t.monthlyMinutes||0)/maxTopicMonthlyMins)*100}%`, backgroundColor: t.color }} />
+                    topicMonthlyData.map(t => {
+                      // 1) Correção do gráfico de barras com fundo e tooltip
+                      const heightPercent = maxTopicMonthlyMins > 0 ? ((t.monthlyMinutes||0)/maxTopicMonthlyMins)*100 : 0;
+                      
+                      return (
+                        <div key={t.id} className="flex-1 flex flex-col items-center group h-full justify-end">
+                           <div className="relative w-full flex justify-center h-full items-end">
+                              {/* Fundo da barra (trilho) para melhor visualização */}
+                              <div className={`absolute bottom-0 w-6 h-full rounded-full opacity-20 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
+                              
+                              {/* A Barra de Progresso */}
+                              <div 
+                                className="relative w-6 rounded-full transition-all duration-1000 group-hover:opacity-80 z-10" 
+                                style={{ 
+                                  height: `${Math.max(heightPercent, t.monthlyMinutes > 0 ? 5 : 0)}%`, // Mínimo de 5% se tiver estudado algo, para não sumir
+                                  backgroundColor: t.color 
+                                }} 
+                              >
+                                {/* Tooltip mostrando as horas ao passar o mouse */}
+                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20">
+                                  {((t.monthlyMinutes||0)/60).toFixed(1)}h
+                                </div>
+                              </div>
+                           </div>
+                           <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-500 truncate w-full text-center">{t.name}</span>
                         </div>
-                        <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-500">{t.name}</span>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                  </div>
               </div>
