@@ -454,12 +454,14 @@ const handlePause = () => {
                   {mode === 'break' ? 'Tempo de Descanso' : (activeTopic?.name || 'Selecione um tópico')}
                 </span>
                 
-                <button 
-                  onClick={() => { if (!isRunning) { setTempInputValue(customTime.toString()); setModalType('editTime'); } }}
-                  <div className={`text-[10rem] md:text-[12rem] font-light tracking-tighter tabular-nums leading-none transition-all ${mode === 'break' ? 'text-emerald-500' : mode === 'stopwatch' ? 'text-blue-500' : getThemeClasses('text-primary')}`}>
-                >
-                  {formatTime(timeLeft)}
-                </button>
+<button 
+  onClick={() => { if (!isRunning) { setTempInputValue(customTime.toString()); setModalType('editTime'); } }}
+  className="cursor-pointer bg-transparent border-none p-0 appearance-none"
+>
+  <div className={`text-[10rem] md:text-[12rem] font-light tracking-tighter tabular-nums leading-none transition-all ${mode === 'break' ? 'text-emerald-500' : mode === 'stopwatch' ? 'text-blue-500' : getThemeClasses('text-primary')}`}>
+    {formatTime(timeLeft)}
+  </div>
+</button>
 
                 {!isRunning && (
                   <div className="space-y-4 flex flex-col items-center mt-8">
