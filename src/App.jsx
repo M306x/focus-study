@@ -262,12 +262,10 @@ useEffect(() => {
 const handlePause = () => {
   if ((mode === 'focus' || mode === 'stopwatch') && activeTopic) {
     let spentMin = 0;
-    
     if (mode === 'focus') {
       spentMin = customTime - Math.floor(timeLeft / 60);
     } else {
-      // No stopwatch, o timeLeft são os segundos decorridos
-      spentMin = Math.floor(timeLeft / 60);
+      spentMin = Math.floor(timeLeft / 60); // Pega o que correu no cronômetro
     }
 
     if (spentMin > 0) {
@@ -276,22 +274,15 @@ const handlePause = () => {
         t.id === activeTopic.id ? { ...t, weeklyMinutes: (t.weeklyMinutes || 0) + spentMin, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
       );
       const newHistoryEntry = {
-        id: Date.now(), 
-        topicId: activeTopic.id, 
-        topicName: activeTopic.name, 
-        minutes: spentMin,
-        date: today, 
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
-        color: activeTopic.color
+        id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
+        date: today, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), color: activeTopic.color
       };
       setTopics(newTopics);
       setHistory([newHistoryEntry, ...history]);
       
-      // Se for cronômetro, após salvar os minutos, resetamos para continuar do zero ou manter os segundos
-      if (mode === 'stopwatch') setTimeLeft(timeLeft % 60); 
+      // Se for cronômetro, resetamos os minutos mas mantemos os segundos "quebrados"
+      if (mode === 'stopwatch') setTimeLeft(timeLeft % 60);
     }
-    
-    if (mode === 'focus') setCustomTime(Math.floor(timeLeft / 60));
   }
 };
 
@@ -454,14 +445,12 @@ const handlePause = () => {
                   {mode === 'break' ? 'Tempo de Descanso' : (activeTopic?.name || 'Selecione um tópico')}
                 </span>
                 
-<button 
-  onClick={() => { if (!isRunning) { setTempInputValue(customTime.toString()); setModalType('editTime'); } }}
-  className="cursor-pointer bg-transparent border-none p-0 appearance-none"
->
-  <div className={`text-[10rem] md:text-[12rem] font-light tracking-tighter tabular-nums leading-none transition-all ${mode === 'break' ? 'text-emerald-500' : mode === 'stopwatch' ? 'text-blue-500' : getThemeClasses('text-primary')}`}>
-    {formatTime(timeLeft)}
-  </div>
-</button>
+                <button 
+                  onClick={() => { if (!isRunning) { setTempInputValue(customTime.toString()); setModalType('editTime'); } }}
+                  className={`text-[10rem] md:text-[12rem] font-light tracking-tighter tabular-nums leading-none cursor-pointer transition-all ${mode === 'break' ? 'text-emerald-500' : getThemeClasses('text-primary')} hover:opacity-80`}
+                >
+                  {formatTime(timeLeft)}
+                </button>
 
                 {!isRunning && (
                   <div className="space-y-4 flex flex-col items-center mt-8">
