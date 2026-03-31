@@ -8,7 +8,7 @@ import {
   BellRing, Trash2, Coffee, Brain,
   BookOpen, Download, Upload, FileJson,
   Flame, BarChart2, ArrowUp, ArrowDown,
-  Sun, Moon, StopCircle // Adicionado ícones de tema
+  Sun, Moon, StopCircle, GraduationCap // Adicionado GraduationCap para o Aurora
 } from 'lucide-react';
 
 const SOUND_LIBRARY = [
@@ -22,45 +22,67 @@ const COLOR_OPTIONS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#
 
 const STORAGE_KEY = 'study_dashboard_data_v1';
 const THEME_KEY = 'study_theme_pref';
+const CURRICULUM_KEY = 'study_aurora_curriculum';
+
+// --- DADOS INICIAIS DO AURORA (Baseado no BCC USP) ---
+const INITIAL_CURRICULUM = [
+  { id: 'MAC0110', name: 'Introdução à Computação', credits: 4, sem: 1, status: 'pending' },
+  { id: 'MAT0112', name: 'Vetores e Geometria', credits: 4, sem: 1, status: 'pending' },
+  { id: 'MAT0111', name: 'Cálculo Diferencial I', credits: 4, sem: 1, status: 'pending' },
+  { id: 'MAC0105', name: 'Fundamentos de Matemática', credits: 4, sem: 1, status: 'pending' },
+  { id: 'MAC0121', name: 'Algoritmos e Estruturas de Dados I', credits: 4, sem: 2, status: 'pending' },
+  { id: 'MAT0122', name: 'Álgebra Linear I', credits: 4, sem: 2, status: 'pending' },
+  { id: 'MAT0121', name: 'Cálculo Diferencial II', credits: 4, sem: 2, status: 'pending' },
+  { id: 'FIS0111', name: 'Física I', credits: 4, sem: 2, status: 'pending' },
+  { id: 'MAC0216', name: 'Técnicas de Programação I', credits: 4, sem: 3, status: 'pending' },
+  { id: 'MAC0323', name: 'Algoritmos e Estruturas de Dados II', credits: 4, sem: 3, status: 'pending' },
+  { id: 'MAT0236', name: 'Funções Diferenciáveis e Séries', credits: 4, sem: 3, status: 'pending' },
+  { id: 'MAC0210', name: 'Laboratório de Métodos Numéricos', credits: 4, sem: 4, status: 'pending' },
+  { id: 'MAC0239', name: 'Introdução à Lógica', credits: 4, sem: 4, status: 'pending' },
+  { id: 'MAC0242', name: 'Laboratório de Programação II', credits: 4, sem: 4, status: 'pending' },
+  { id: 'MAC0316', name: 'Conceitos de Linguagens de Programação', credits: 4, sem: 5, status: 'pending' },
+  { id: 'MAC0338', name: 'Análise de Algoritmos', credits: 4, sem: 5, status: 'pending' },
+  { id: 'MAC0422', name: 'Sistemas Operacionais', credits: 4, sem: 6, status: 'pending' },
+  { id: 'MAC0350', name: 'Introdução a Banco de Dados', credits: 4, sem: 6, status: 'pending' },
+  { id: 'MAC0499', name: 'Trabalho de Formatura I', credits: 4, sem: 7, status: 'pending' },
+  { id: 'MAC0499B', name: 'Trabalho de Formatura II', credits: 4, sem: 8, status: 'pending' }
+];
 
 export default function App() {
-  // --- ESTADOS GERAIS ---
   const [view, setView] = useState('focus');
   const [mode, setMode] = useState('focus');
-  // Carrega o tema salvo ou usa dark como padrão
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
   
-  // --- CONFIGURAÇÕES ---
   const [selectedSound, setSelectedSound] = useState(SOUND_LIBRARY[0]);
   const [alarmDuration, setAlarmDuration] = useState(5);
   const [infiniteAlarm, setInfiniteAlarm] = useState(false);
   const [dailyGoalHours, setDailyGoalHours] = useState(7);
 
-  // --- DADOS ---
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
   const [activeTopic, setActiveTopic] = useState(null);
+  
+  // Estado do Aurora (Grade Curricular)
+  const [curriculum, setCurriculum] = useState(() => {
+    const saved = localStorage.getItem(CURRICULUM_KEY);
+    return saved ? JSON.parse(saved) : INITIAL_CURRICULUM;
+  });
 
-  // --- TIMER ---
   const [customTime, setCustomTime] = useState(25);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
 
-  // --- REFS ---
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
   const fileInputRef = useRef(null);
   const alarmPlayingRef = useRef(false);
 
-  // --- MODAIS / INPUTS ---
   const [modalType, setModalType] = useState(null); 
   const [editingTopic, setEditingTopic] = useState(null);
   const [tempInputValue, setTempInputValue] = useState("");
 
-  // --- HELPER DE ESTILOS (Grok Theme Logic) ---
-  // Função auxiliar para classes dinâmicas baseadas no tema
   const getThemeClasses = (type) => {
     const isDark = theme === 'dark';
     switch (type) {
@@ -77,7 +99,6 @@ export default function App() {
     }
   };
 
-  // --- PERSISTÊNCIA: CARREGAR DADOS ---
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -98,7 +119,6 @@ export default function App() {
     }
   }, []);
 
-  // --- PERSISTÊNCIA: SALVAR DADOS & TEMA ---
   useEffect(() => {
     const dataToSave = {
       topics, history, alarmDuration, infiniteAlarm, dailyGoalHours,
@@ -111,7 +131,11 @@ export default function App() {
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
-  // --- RESET SEMANAL ---
+  // Salva o currículo do Aurora
+  useEffect(() => {
+    localStorage.setItem(CURRICULUM_KEY, JSON.stringify(curriculum));
+  }, [curriculum]);
+
   useEffect(() => {
     const updateWeeklyMinutes = () => {
       const now = new Date();
@@ -136,7 +160,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [history]);
 
-  // --- EXPORTAR/IMPORTAR ---
   const handleExport = () => {
     const dataToExport = {
       topics, history, alarmDuration, infiniteAlarm, dailyGoalHours,
@@ -171,7 +194,6 @@ export default function App() {
     event.target.value = ''; 
   };
 
-  // --- ÁUDIO E TIMER ---
   const initAudio = () => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -179,24 +201,24 @@ export default function App() {
     if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
   };
 
-useEffect(() => {
-  if (isRunning) {
-    timerRef.current = setInterval(() => {
-      if (mode === 'stopwatch') {
-        setTimeLeft(prev => prev + 1); // Modo cronômetro: aumenta o tempo
-      } else {
-        const now = Date.now();
-        const remaining = Math.max(0, Math.round((endTime - now) / 1000));
-        setTimeLeft(remaining);
-        if (remaining <= 0) {
-          clearInterval(timerRef.current);
-          handleComplete();
+  useEffect(() => {
+    if (isRunning) {
+      timerRef.current = setInterval(() => {
+        if (mode === 'stopwatch') {
+          setTimeLeft(prev => prev + 1); // Cronômetro aumenta
+        } else {
+          const now = Date.now();
+          const remaining = Math.max(0, Math.round((endTime - now) / 1000));
+          setTimeLeft(remaining);
+          if (remaining <= 0) {
+            clearInterval(timerRef.current);
+            handleComplete();
+          }
         }
-      }
-    }, 1000);
-  }
-  return () => clearInterval(timerRef.current);
-}, [isRunning, endTime, mode]);
+      }, 1000);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [isRunning, endTime, mode]);
 
   const playSound = (soundConfig, duration) => {
     initAudio();
@@ -259,36 +281,61 @@ useEffect(() => {
     }
   };
 
-const handlePause = () => {
-  if ((mode === 'focus' || mode === 'stopwatch') && activeTopic) {
-    let spentMin = 0;
-    if (mode === 'focus') {
-      spentMin = customTime - Math.floor(timeLeft / 60);
-    } else {
-      spentMin = Math.floor(timeLeft / 60); // Pega o que correu no cronômetro
-    }
+  const handlePause = () => {
+    if ((mode === 'focus' || mode === 'stopwatch') && activeTopic) {
+      let spentMin = 0;
+      if (mode === 'focus') {
+        spentMin = customTime - Math.floor(timeLeft / 60);
+      } else {
+        spentMin = Math.floor(timeLeft / 60); // Pega o total de minutos do Stopwatch
+      }
 
-    if (spentMin > 0) {
-      const today = new Date().toISOString().split('T')[0];
-      const newTopics = topics.map(t => 
-        t.id === activeTopic.id ? { ...t, weeklyMinutes: (t.weeklyMinutes || 0) + spentMin, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
-      );
-      const newHistoryEntry = {
-        id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
-        date: today, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), color: activeTopic.color
-      };
-      setTopics(newTopics);
-      setHistory([newHistoryEntry, ...history]);
+      if (spentMin > 0) {
+        const today = new Date().toISOString().split('T')[0];
+        const newTopics = topics.map(t => 
+          t.id === activeTopic.id ? { ...t, weeklyMinutes: (t.weeklyMinutes || 0) + spentMin, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
+        );
+        const newHistoryEntry = {
+          id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
+          date: today, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), color: activeTopic.color
+        };
+        setTopics(newTopics);
+        setHistory([newHistoryEntry, ...history]);
+        
+        // Mantém apenas os segundos excedentes se for cronômetro, para que os minutos sejam "zerados" do visor e salvos no db
+        if (mode === 'stopwatch') setTimeLeft(timeLeft % 60);
+      }
       
-      // Se for cronômetro, resetamos os minutos mas mantemos os segundos "quebrados"
-      if (mode === 'stopwatch') setTimeLeft(timeLeft % 60);
+      if (mode === 'focus') setCustomTime(Math.floor(timeLeft / 60));
     }
-  }
-};
+  };
+
+  const handleReset = () => {
+    // Garante que o tempo atual do stopwatch seja salvo antes de zerar tudo (se > 1 min)
+    if (mode === 'stopwatch' && timeLeft >= 60) {
+      handlePause();
+    } else if (isRunning && mode === 'focus') {
+      handlePause();
+    }
+    
+    setIsRunning(false);
+    // Retorna o tempo dependendo do modo
+    if (mode === 'stopwatch') {
+      setTimeLeft(0);
+    } else if (mode === 'break') {
+      setTimeLeft(5 * 60);
+    } else {
+      setCustomTime(25);
+      setTimeLeft(25 * 60);
+    }
+    setEndTime(null);
+  };
 
   const resetAllData = () => {
     setTopics([]); setHistory([]); setActiveTopic(null); setTimeLeft(25 * 60); setIsRunning(false); setView('focus');
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(CURRICULUM_KEY);
+    setCurriculum(INITIAL_CURRICULUM);
   };
 
   const formatTime = (seconds) => {
@@ -297,6 +344,14 @@ const handlePause = () => {
     const s = seconds % 60;
     const hDisplay = h > 0 ? `${h.toString().padStart(2, '0')}:` : "";
     return `${hDisplay}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const toggleCourseStatus = (id) => {
+    setCurriculum(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const nextStatus = c.status === 'pending' ? 'doing' : c.status === 'doing' ? 'completed' : 'pending';
+      return { ...c, status: nextStatus };
+    }));
   };
 
   // --- ESTATÍSTICAS ---
@@ -374,9 +429,9 @@ const handlePause = () => {
       <style>{`
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: ${theme === 'dark' ? '#27272a' : '#d4d4d8'}; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: ${theme === 'dark' ? '#3f3f46' : '#d4d4d8'}; border-radius: 10px; }
       `}</style>
 
       {/* HEADER */}
@@ -388,17 +443,18 @@ const handlePause = () => {
           <span className={`font-bold tracking-tighter text-lg uppercase ${getThemeClasses('text-primary')}`}>Study</span>
         </div>
         
-        <nav className="flex gap-4">
+        <nav className="flex gap-4 overflow-x-auto no-scrollbar max-w-[60vw]">
           {[
             { id: 'focus', icon: Timer, label: 'FOCUS' },
             { id: 'labels', icon: Tag, label: 'LABELS' },
             { id: 'dashboard', icon: BarChart3, label: 'DASHBOARD' },
             { id: 'goals', icon: Target, label: 'GOALS' },
+            { id: 'aurora', icon: GraduationCap, label: 'AURORA' },
           ].map(item => (
             <button 
               key={item.id} 
               onClick={() => setView(item.id)} 
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all flex-shrink-0 ${
                 view === item.id 
                   ? (theme === 'dark' ? 'text-white bg-zinc-900' : 'text-white bg-black')
                   : (theme === 'dark' ? 'text-zinc-600 hover:text-zinc-400' : 'text-zinc-500 hover:text-black')
@@ -440,22 +496,24 @@ const handlePause = () => {
               <div className="flex flex-col items-center">
                 <span 
                   className={`text-[10px] font-black uppercase tracking-[0.4em] mb-4 transition-colors`}
-                  style={{ color: mode === 'break' ? '#10B981' : (activeTopic?.color || (theme === 'dark' ? '#52525b' : '#a1a1aa')) }}
+                  style={{ color: mode === 'break' ? '#10B981' : (mode === 'stopwatch' ? '#3B82F6' : (activeTopic?.color || (theme === 'dark' ? '#52525b' : '#a1a1aa'))) }}
                 >
-                  {mode === 'break' ? 'Tempo de Descanso' : (activeTopic?.name || 'Selecione um tópico')}
+                  {mode === 'break' ? 'Tempo de Descanso' : (mode === 'stopwatch' ? 'Cronômetro' : (activeTopic?.name || 'Selecione um tópico'))}
                 </span>
                 
                 <button 
-                  onClick={() => { if (!isRunning) { setTempInputValue(customTime.toString()); setModalType('editTime'); } }}
-                  className={`text-[10rem] md:text-[12rem] font-light tracking-tighter tabular-nums leading-none cursor-pointer transition-all ${mode === 'break' ? 'text-emerald-500' : getThemeClasses('text-primary')} hover:opacity-80`}
+                  onClick={() => { if (!isRunning && mode !== 'stopwatch') { setTempInputValue(customTime.toString()); setModalType('editTime'); } }}
+                  className="cursor-pointer bg-transparent border-none p-0 appearance-none outline-none"
                 >
-                  {formatTime(timeLeft)}
+                  <div className={`text-[10rem] md:text-[12rem] font-light tracking-tighter tabular-nums leading-none transition-all hover:opacity-80 ${mode === 'break' ? 'text-emerald-500' : mode === 'stopwatch' ? 'text-blue-500' : getThemeClasses('text-primary')}`}>
+                    {formatTime(timeLeft)}
+                  </div>
                 </button>
 
                 {!isRunning && (
                   <div className="space-y-4 flex flex-col items-center mt-8">
-                    <div className="flex gap-3">
-                      {[25, 45, 60, 90, 120].map(m => (
+                    <div className="flex gap-3 h-8">
+                      {mode === 'focus' && [25, 45, 60, 90, 120].map(m => (
                         <button 
                           key={m} 
                           onClick={() => { setCustomTime(m); setTimeLeft(m * 60); }} 
@@ -470,7 +528,7 @@ const handlePause = () => {
                       ))}
                     </div>
                     
-<div className="flex gap-4">
+                    <div className="flex gap-4">
                       <button 
                         onClick={() => { setMode('focus'); setCustomTime(25); setTimeLeft(25 * 60); }}
                         className={`flex items-center gap-2 px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] border transition-all ${mode === 'focus' ? (theme === 'dark' ? 'bg-white text-black border-white' : 'bg-black text-white border-black') : 'text-zinc-500 border-transparent hover:border-zinc-500'}`}
@@ -498,21 +556,25 @@ const handlePause = () => {
 
               <div className="mt-16 flex items-center gap-10">
                 <button 
-                  disabled={mode === 'focus' && !activeTopic}
+                  disabled={(mode === 'focus' || mode === 'stopwatch') && !activeTopic}
                   onClick={() => { 
                     initAudio();
-                    if (isRunning) { handlePause(); } else { setEndTime(Date.now() + timeLeft * 1000); }
+                    if (isRunning) { handlePause(); } else { if(mode !== 'stopwatch') setEndTime(Date.now() + timeLeft * 1000); }
                     setIsRunning(!isRunning);
                   }} 
                   className={`w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-20 disabled:grayscale border ${
                     isRunning 
                       ? (theme === 'dark' ? 'bg-zinc-900 text-white border-zinc-800' : 'bg-white text-black border-zinc-200 shadow-sm') 
-                      : (mode === 'break' ? 'bg-emerald-500 text-white border-emerald-500' : (theme === 'dark' ? 'bg-white text-black border-white' : 'bg-black text-white border-black'))
+                      : (mode === 'break' ? 'bg-emerald-500 text-white border-emerald-500' : (mode === 'stopwatch' ? 'bg-blue-500 text-white border-blue-500' : (theme === 'dark' ? 'bg-white text-black border-white' : 'bg-black text-white border-black')))
                   }`}
                 >
                   {isRunning ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
                 </button>
-                <button onClick={() => { setIsRunning(false); setTimeLeft(customTime * 60); setEndTime(null); }} className={`p-3 transition-colors ${theme === 'dark' ? 'text-zinc-800 hover:text-white' : 'text-zinc-300 hover:text-black'}`}>
+                <button 
+                  onClick={handleReset} 
+                  className={`p-3 transition-colors ${theme === 'dark' ? 'text-zinc-800 hover:text-white' : 'text-zinc-300 hover:text-black'}`}
+                  title="Zerar Tempo"
+                >
                   <RotateCcw size={24} />
                 </button>
               </div>
@@ -564,11 +626,91 @@ const handlePause = () => {
              </div>
           )}
 
-          {/* VIEW: DASHBOARD */}
-{view === 'dashboard' && (
-            <div className="space-y-6"> {/* 3) Espaçamento reduzido de 12 para 6 */}
-              {/* 3) Removida a div vazia que causava espaço extra no topo */}
+          {/* VIEW: AURORA (GRADE CURRICULAR BCC USP) */}
+          {view === 'aurora' && (
+            <div className="space-y-10 animate-fade-in">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-4">
+                <div>
+                  <h2 className={`text-2xl font-black uppercase tracking-widest flex items-center gap-3 ${getThemeClasses('text-primary')}`}>
+                    <GraduationCap size={28} className="text-zinc-500" />
+                    Grade Curricular
+                  </h2>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mt-2">Baseado no Sistema Aurora (BCC USP)</p>
+                </div>
+                
+                <div className={`p-6 rounded-[2rem] border flex items-center gap-6 min-w-[280px] ${getThemeClasses('card')}`}>
+                  <div className="flex-1">
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Créditos Obtidos</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black tabular-nums text-emerald-500">
+                        {curriculum.filter(c => c.status === 'completed').reduce((sum, c) => sum + c.credits, 0)}
+                      </span>
+                      <span className="text-sm font-bold text-zinc-500">/ {curriculum.reduce((sum, c) => sum + c.credits, 0)}</span>
+                    </div>
+                  </div>
+                  <div className="w-16 h-16 rounded-full border-4 border-zinc-800 flex items-center justify-center relative">
+                     <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 36 36">
+                       <path
+                         className="text-emerald-500" strokeDasharray={`${(curriculum.filter(c => c.status === 'completed').reduce((sum, c) => sum + c.credits, 0) / curriculum.reduce((sum, c) => sum + c.credits, 0)) * 100}, 100`}
+                         d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                         fill="none" stroke="currentColor" strokeWidth="3"
+                       />
+                     </svg>
+                     <span className={`text-[10px] font-bold ${getThemeClasses('text-primary')}`}>
+                       {Math.round((curriculum.filter(c => c.status === 'completed').reduce((sum, c) => sum + c.credits, 0) / curriculum.reduce((sum, c) => sum + c.credits, 0)) * 100)}%
+                     </span>
+                  </div>
+                </div>
+              </div>
 
+              {/* Kanban / Semesters Grid */}
+              <div className="flex gap-6 overflow-x-auto pb-12 pt-4 custom-scrollbar snap-x">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => {
+                  const semCourses = curriculum.filter(c => c.sem === sem);
+                  if(semCourses.length === 0) return null;
+                  
+                  return (
+                    <div key={sem} className="min-w-[280px] sm:min-w-[320px] flex-shrink-0 space-y-3 snap-start">
+                      <div className="flex items-center justify-between mb-6 px-1">
+                        <h4 className={`text-[10px] font-black uppercase tracking-[0.2em] ${getThemeClasses('text-primary')}`}>Semestre {sem}</h4>
+                        <span className="text-[9px] font-bold text-zinc-500 bg-zinc-500/10 px-2 py-1 rounded">{semCourses.reduce((sum, c) => sum + c.credits, 0)} CR</span>
+                      </div>
+                      
+                      {semCourses.map(course => {
+                        const isDone = course.status === 'completed';
+                        const isDoing = course.status === 'doing';
+                        
+                        return (
+                          <button
+                            key={course.id}
+                            onClick={() => toggleCourseStatus(course.id)}
+                            className={`w-full text-left p-5 rounded-3xl border transition-all group relative overflow-hidden ${
+                               isDone ? 'bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500' :
+                               isDoing ? 'bg-blue-500/10 border-blue-500/30 hover:border-blue-500' :
+                               (theme === 'dark' ? 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-600' : 'bg-white border-zinc-200 hover:border-zinc-400 shadow-sm')
+                            }`}
+                          >
+                             <div className="flex justify-between items-start mb-3">
+                                <span className={`text-[10px] font-black tracking-widest ${isDone ? 'text-emerald-500' : isDoing ? 'text-blue-500' : 'text-zinc-500'}`}>{course.id}</span>
+                                <span className="text-[9px] font-bold text-zinc-500 bg-zinc-500/10 px-2 py-0.5 rounded">{course.credits} cr</span>
+                             </div>
+                             <h5 className={`font-bold text-sm leading-snug pr-4 ${getThemeClasses('text-primary')}`}>{course.name}</h5>
+
+                             {/* Indicador visual de Status */}
+                             <div className={`absolute top-5 right-5 w-2 h-2 rounded-full ${isDone ? 'bg-emerald-500' : isDoing ? 'bg-blue-500 bg-opacity-100 animate-pulse' : 'bg-zinc-700'}`} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: DASHBOARD */}
+          {view === 'dashboard' && (
+            <div className="space-y-6"> 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className={`border p-6 rounded-[2rem] flex items-start gap-4 ${getThemeClasses('card')}`}>
                   <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
@@ -609,12 +751,10 @@ const handlePause = () => {
                 </div>
                 <div className="flex gap-2 justify-center flex-wrap">
                   {calendarData.map((day, i) => {
-                    // 2) Lógica corrigida para opacidade baseada na meta e cor roxa
                     const minutes = day.minutes;
-                    const goalMins = dailyGoalHours * 60; // Meta diária em minutos
+                    const goalMins = dailyGoalHours * 60; 
                     const hasStudy = minutes > 0;
                     const reachedGoal = minutes >= goalMins;
-                    // Intensidade de 0.1 a 1.0 baseada no quão perto está da meta
                     const intensity = hasStudy ? Math.min(0.15 + (minutes / goalMins) * 0.85, 1) : 0;
 
                     return (
@@ -623,7 +763,6 @@ const handlePause = () => {
                         title={`${day.date}: ${(minutes / 60).toFixed(1)}h`}
                         className="w-4 h-16 rounded-full transition-all hover:scale-y-110"
                         style={{ 
-                          // Se bateu a meta: Roxo (#8B5CF6). Se não: Verde (#10B981) com opacidade variável
                           backgroundColor: reachedGoal 
                             ? '#8B5CF6' 
                             : (hasStudy ? `rgba(16, 185, 129, ${intensity})` : (theme === 'dark' ? '#27272a' : '#f4f4f5')),
@@ -645,24 +784,19 @@ const handlePause = () => {
                     <div className="w-full text-center text-zinc-400 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
                   ) : (
                     topicMonthlyData.map(t => {
-                      // 1) Correção do gráfico de barras com fundo e tooltip
                       const heightPercent = maxTopicMonthlyMins > 0 ? ((t.monthlyMinutes||0)/maxTopicMonthlyMins)*100 : 0;
                       
                       return (
                         <div key={t.id} className="flex-1 flex flex-col items-center group h-full justify-end">
                            <div className="relative w-full flex justify-center h-full items-end">
-                              {/* Fundo da barra (trilho) para melhor visualização */}
                               <div className={`absolute bottom-0 w-6 h-full rounded-full opacity-20 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-                              
-                              {/* A Barra de Progresso */}
                               <div 
                                 className="relative w-6 rounded-full transition-all duration-1000 group-hover:opacity-80 z-10" 
                                 style={{ 
-                                  height: `${Math.max(heightPercent, t.monthlyMinutes > 0 ? 5 : 0)}%`, // Mínimo de 5% se tiver estudado algo, para não sumir
+                                  height: `${Math.max(heightPercent, t.monthlyMinutes > 0 ? 5 : 0)}%`,
                                   backgroundColor: t.color 
                                 }} 
                               >
-                                {/* Tooltip mostrando as horas ao passar o mouse */}
                                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20">
                                   {((t.monthlyMinutes||0)/60).toFixed(1)}h
                                 </div>
@@ -820,7 +954,7 @@ const handlePause = () => {
 
               <section className={`pt-12 border-t ${getThemeClasses('border')}`}>
                 <button 
-                  onClick={() => { if(confirm("Apagar tudo?")) resetAllData(); }}
+                  onClick={() => { if(confirm("Apagar tudo? Isso também apagará a grade do Aurora.")) resetAllData(); }}
                   className="w-full flex items-center justify-center gap-3 p-5 rounded-2xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors font-bold text-[10px] uppercase tracking-widest"
                 >
                   <Trash2 size={16} /> Resetar App
