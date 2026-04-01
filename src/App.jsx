@@ -1,13 +1,12 @@
-<DOCUMENT filename="App.jsx">
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Play, Pause, RotateCcw, 
   Timer, Tag, Settings, 
   X, TrendingUp, Volume2, 
   BarChart3, Activity, 
+  Zap, BellRing, Trash2, Coffee, Brain,
   BookOpen, Download, Upload, FileJson,
-  Flame, Coffee, Brain,
-  Sun, Moon, StopCircle
+  Flame, Sun, Moon, StopCircle
 } from 'lucide-react';
 
 const SOUND_LIBRARY = [
@@ -23,19 +22,19 @@ const STORAGE_KEY = 'study_dashboard_data_v1';
 const THEME_KEY = 'study_theme_pref';
 
 export default function App() {
-  // --- GENERAL STATES ---
+  // --- ESTADOS GERAIS ---
   const [view, setView] = useState('focus');
   const [mode, setMode] = useState('focus');
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
   
-  // --- SETTINGS ---
+  // --- CONFIGURAÇÕES ---
   const [selectedSound, setSelectedSound] = useState(SOUND_LIBRARY[0]);
   const [alarmDuration, setAlarmDuration] = useState(5);
   const [infiniteAlarm, setInfiniteAlarm] = useState(false);
   const [dailyGoalHours, setDailyGoalHours] = useState(7);
-  const [hoursPeriod, setHoursPeriod] = useState('monthly'); // Weekly / Monthly toggle
+  const [hoursPeriod, setHoursPeriod] = useState('monthly'); 
 
-  // --- DATA ---
+  // --- DADOS ---
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
   const [activeTopic, setActiveTopic] = useState(null);
@@ -53,12 +52,12 @@ export default function App() {
   const fileInputRef = useRef(null);
   const alarmPlayingRef = useRef(false);
 
-  // --- MODALS / INPUTS ---
+  // --- MODAIS ---
   const [modalType, setModalType] = useState(null); 
   const [editingTopic, setEditingTopic] = useState(null);
   const [tempInputValue, setTempInputValue] = useState("");
 
-  // --- THEME HELPER ---
+  // --- CLASSES DE TEMA ---
   const getThemeClasses = (type) => {
     const isDark = theme === 'dark';
     switch (type) {
@@ -74,7 +73,7 @@ export default function App() {
     }
   };
 
-  // --- LOAD DATA ---
+  // --- CARREGAR DADOS ---
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -90,12 +89,12 @@ export default function App() {
           if (sound) setSelectedSound(sound);
         }
       } catch (e) {
-        console.error("Error loading data:", e);
+        console.error("Erro ao carregar dados:", e);
       }
     }
   }, []);
 
-  // --- SAVE DATA ---
+  // --- SALVAR DADOS ---
   useEffect(() => {
     const dataToSave = {
       topics, history, alarmDuration, infiniteAlarm, dailyGoalHours,
@@ -108,32 +107,7 @@ export default function App() {
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
-  // --- WEEKLY RESET ---
-  useEffect(() => {
-    const updateWeeklyMinutes = () => {
-      const now = new Date();
-      const startOfCurrentWeek = new Date(now);
-      startOfCurrentWeek.setDate(now.getDate() - (now.getDay() + 1) % 7); 
-      startOfCurrentWeek.setHours(23, 0, 0, 0); 
-
-      setTopics(prevTopics =>
-        prevTopics.map(topic => {
-          const weeklyMins = history
-            .filter(h => h.topicId === topic.id && new Date(h.date) >= startOfCurrentWeek)
-            .reduce((sum, h) => sum + h.minutes, 0);
-          return { ...topic, weeklyMinutes: weeklyMins };
-        })
-      );
-    };
-    updateWeeklyMinutes();
-    const interval = setInterval(() => {
-      const now = new Date();
-      if (now.getDay() === 6 && now.getHours() === 23 && now.getMinutes() === 0) updateWeeklyMinutes();
-    }, 60000); 
-    return () => clearInterval(interval);
-  }, [history]);
-
-  // --- EXPORT / IMPORT ---
+  // --- EXPORTAR / IMPORTAR ---
   const handleExport = () => {
     const dataToExport = {
       topics, history, alarmDuration, infiniteAlarm, dailyGoalHours,
@@ -143,7 +117,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `study_backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `productivity_backup_${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -168,7 +142,7 @@ export default function App() {
     event.target.value = ''; 
   };
 
-  // --- AUDIO & TIMER ---
+  // --- ÁUDIO E TIMER ---
   const initAudio = () => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -237,7 +211,7 @@ export default function App() {
       const today = new Date().toISOString().split('T')[0];
       
       const newTopics = topics.map(t => 
-        t.id === activeTopic.id ? { ...t, weeklyMinutes: (t.weeklyMinutes || 0) + spentMin, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
+        t.id === activeTopic.id ? { ...t, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
       );
       const newHistoryEntry = {
         id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
@@ -256,8 +230,8 @@ export default function App() {
     }
   };
 
-  // FIXED: accurate elapsed time for pause (both focus and stopwatch)
   const handlePause = () => {
+    setIsRunning(false);
     if ((mode === 'focus' || mode === 'stopwatch') && activeTopic) {
       let elapsedSeconds = 0;
       if (mode === 'focus') {
@@ -271,7 +245,7 @@ export default function App() {
       if (spentMin > 0) {
         const today = new Date().toISOString().split('T')[0];
         const newTopics = topics.map(t => 
-          t.id === activeTopic.id ? { ...t, weeklyMinutes: (t.weeklyMinutes || 0) + spentMin, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
+          t.id === activeTopic.id ? { ...t, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
         );
         const newHistoryEntry = {
           id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
@@ -298,7 +272,7 @@ export default function App() {
     return `${hDisplay}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // --- STATS ---
+  // --- ESTATÍSTICAS ---
   const statsByPeriod = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -337,7 +311,6 @@ export default function App() {
     return streak;
   }, [calendarData]);
 
-  // Period data for Hours by Subject (Weekly / Monthly)
   const topicPeriodData = useMemo(() => {
     const now = new Date();
     let startOfPeriod;
@@ -357,7 +330,6 @@ export default function App() {
 
   const maxPeriodMins = Math.max(...topicPeriodData.map(t => t.periodMinutes || 0), 1);
 
-  // --- RENDER ---
   return (
     <div 
       className={`flex flex-col h-screen transition-colors duration-500 font-sans overflow-hidden ${getThemeClasses('bg')} ${getThemeClasses('text-secondary')}`} 
@@ -371,13 +343,13 @@ export default function App() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: ${theme === 'dark' ? '#27272a' : '#d4d4d8'}; border-radius: 10px; }
       `}</style>
 
-      {/* HEADER */}
+      {/* CABEÇALHO */}
       <header className={`h-20 border-b flex items-center justify-between px-12 shrink-0 z-10 ${theme === 'dark' ? 'border-zinc-900 bg-black' : 'border-zinc-200 bg-white'}`}>
         <div className="flex items-center gap-3">
           <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>
             <BookOpen size={18} strokeWidth={2.5} />
           </div>
-          <span className={`font-bold tracking-tighter text-lg uppercase ${getThemeClasses('text-primary')}`}>Study</span>
+          <span className={`font-bold tracking-tighter text-lg uppercase ${getThemeClasses('text-primary')}`}>PRODUCTIVE</span>
         </div>
         
         <nav className="flex gap-4">
@@ -409,7 +381,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="p-8 max-w-5xl mx-auto pb-24">
           
-          {/* VIEW: FOCUS */}
+          {/* FOCUS VIEW */}
           {view === 'focus' && (
             <div className="flex flex-col items-center justify-center pt-8">
               <div className={`flex flex-wrap justify-center gap-2 p-1.5 rounded-2xl mb-12 border transition-colors ${theme === 'dark' ? 'bg-zinc-900/40 border-zinc-800/50' : 'bg-zinc-100 border-zinc-200'}`}>
@@ -492,8 +464,12 @@ export default function App() {
                   disabled={mode === 'focus' && !activeTopic}
                   onClick={() => { 
                     initAudio();
-                    if (isRunning) { handlePause(); } else { setEndTime(Date.now() + timeLeft * 1000); }
-                    setIsRunning(!isRunning);
+                    if (isRunning) { 
+                      handlePause(); 
+                    } else { 
+                      setEndTime(Date.now() + timeLeft * 1000); 
+                      setIsRunning(true);
+                    }
                   }} 
                   className={`w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-20 disabled:grayscale border ${
                     isRunning 
@@ -505,6 +481,7 @@ export default function App() {
                 </button>
                 <button 
                   onClick={() => { 
+                    if (isRunning) handlePause();
                     setIsRunning(false); 
                     setEndTime(null);
                     if (mode === 'stopwatch') {
@@ -529,7 +506,7 @@ export default function App() {
             </div>
           )}
 
-          {/* VIEW: TOPICS */}
+          {/* TOPICS VIEW */}
           {view === 'labels' && (
              <div className="max-w-xl mx-auto">
                <div className="space-y-3 mb-8">
@@ -556,7 +533,7 @@ export default function App() {
                    className={`flex-1 border rounded-xl p-4 outline-none focus:border-zinc-500 text-[10px] font-bold tracking-widest uppercase ${getThemeClasses('input')}`}
                    onKeyDown={(e) => { 
                      if(e.key === 'Enter' && e.target.value) { 
-                       const updated = [...topics, { id: Date.now(), name: e.target.value, color: COLOR_OPTIONS[Math.floor(Math.random()*COLOR_OPTIONS.length)], weeklyMinutes: 0, totalMinutes: 0, goalHours: 10, hasGoal: true }];
+                       const updated = [...topics, { id: Date.now(), name: e.target.value, color: COLOR_OPTIONS[Math.floor(Math.random()*COLOR_OPTIONS.length)], totalMinutes: 0 }];
                        setTopics(updated); 
                        e.target.value = '';
                      }
@@ -566,7 +543,7 @@ export default function App() {
              </div>
           )}
 
-          {/* VIEW: DASHBOARD */}
+          {/* DASHBOARD VIEW */}
           {view === 'dashboard' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -633,46 +610,34 @@ export default function App() {
                 </div>
               </div>
 
-              {/* HOURS BY SUBJECT - FULLY THEME-ADAPTIVE TOGGLE */}
               <div className={`border rounded-[2.5rem] p-10 ${getThemeClasses('card')}`}>
                 <div className="flex justify-between items-center mb-8">
                   <h3 className={`font-bold text-sm uppercase tracking-widest flex items-center gap-3 ${getThemeClasses('text-primary')}`}>
-                    <BarChart3 size={18} className="text-zinc-500" /> HOURS BY SUBJECT
+                    <BarChart3 size={18} className="text-zinc-500" /> TIME BY TOPIC
                   </h3>
-                  
-                  {/* IMPROVED TOGGLE - fully adaptive to light/dark theme */}
-                  <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-2xl p-1 border border-zinc-200 dark:border-zinc-800">
+                  <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-2xl p-1">
                     <button 
                       onClick={() => setHoursPeriod('weekly')}
-                      className={`px-6 py-2 text-[10px] font-bold uppercase tracking-widest rounded-[14px] transition-all ${
-                        hoursPeriod === 'weekly'
-                          ? theme === 'dark'
-                            ? 'bg-white text-black shadow-sm'
-                            : 'bg-black text-white shadow-sm'
-                          : theme === 'dark'
-                            ? 'text-zinc-400 hover:text-white'
-                            : 'text-zinc-500 hover:text-zinc-800'
+                      className={`px-5 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-[1rem] transition-all ${
+                        hoursPeriod === 'weekly' 
+                          ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') 
+                          : 'text-zinc-500'
                       }`}
                     >
                       Weekly
                     </button>
                     <button 
                       onClick={() => setHoursPeriod('monthly')}
-                      className={`px-6 py-2 text-[10px] font-bold uppercase tracking-widest rounded-[14px] transition-all ${
-                        hoursPeriod === 'monthly'
-                          ? theme === 'dark'
-                            ? 'bg-white text-black shadow-sm'
-                            : 'bg-black text-white shadow-sm'
-                          : theme === 'dark'
-                            ? 'text-zinc-400 hover:text-white'
-                            : 'text-zinc-500 hover:text-zinc-800'
+                      className={`px-5 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-[1rem] transition-all ${
+                        hoursPeriod === 'monthly' 
+                          ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') 
+                          : 'text-zinc-500'
                       }`}
                     >
                       Monthly
                     </button>
                   </div>
                 </div>
-
                 <div className="flex items-end justify-between h-48 gap-4 px-4">
                   {topics.length === 0 ? (
                     <div className="w-full text-center text-zinc-400 uppercase font-black text-[10px] tracking-[0.5em]">No data</div>
@@ -705,7 +670,7 @@ export default function App() {
             </div>
           )}
 
-          {/* VIEW: SETTINGS */}
+          {/* SETTINGS VIEW */}
           {view === 'settings' && (
             <div className="max-w-md mx-auto space-y-12">
               <section>
@@ -774,7 +739,7 @@ export default function App() {
                 <div className={`p-6 rounded-2xl border flex items-center justify-between mb-4 ${getThemeClasses('card')}`}>
                   <div className="flex flex-col">
                     <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Infinite Alarm</span>
-                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Play until manually stopped</span>
+                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Until stopped manually</span>
                   </div>
                   <button 
                     onClick={() => setInfiniteAlarm(!infiniteAlarm)}
@@ -785,8 +750,8 @@ export default function App() {
                 </div>
                 <div className={`p-6 rounded-2xl border flex items-center justify-between ${getThemeClasses('card')}`}>
                   <div className="flex flex-col">
-                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Daily Goal</span>
-                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Hours</span>
+                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Goal Intensity</span>
+                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Daily Target Hours</span>
                   </div>
                   <input type="number" value={dailyGoalHours} onChange={(e) => setDailyGoalHours(Math.max(0, parseInt(e.target.value)||0))} className={`border rounded-xl px-4 py-2 w-20 text-center font-bold outline-none ${getThemeClasses('input')}`} />
                 </div>
@@ -794,10 +759,10 @@ export default function App() {
 
               <section className={`pt-12 border-t ${getThemeClasses('border')}`}>
                 <button 
-                  onClick={() => { if(confirm("Delete all data?")) resetAllData(); }}
+                  onClick={() => { if(confirm("This will clear all data. Proceed?")) resetAllData(); }}
                   className="w-full flex items-center justify-center gap-3 p-5 rounded-2xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors font-bold text-[10px] uppercase tracking-widest"
                 >
-                  <Trash2 size={16} /> Reset App
+                  <Trash2 size={16} /> Wipe Data
                 </button>
               </section>
             </div>
@@ -809,24 +774,24 @@ export default function App() {
       {modalType === 'editTime' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-6">
           <div className={`border p-8 rounded-[2rem] w-full max-w-xs text-center ${getThemeClasses('modal-bg')}`}>
-            <h3 className={`font-bold mb-6 uppercase text-[10px] tracking-widest opacity-40 ${getThemeClasses('text-primary')}`}>Set Minutes</h3>
+            <h3 className={`font-bold mb-6 uppercase text-[10px] tracking-widest opacity-40 ${getThemeClasses('text-primary')}`}>Duration (min)</h3>
             <input 
               autoFocus type="number" value={tempInputValue} onChange={(e) => setTempInputValue(e.target.value)}
               className={`w-full border rounded-2xl p-6 mb-6 text-center outline-none font-bold text-5xl tracking-tighter ${getThemeClasses('input')}`}
             />
             <div className="flex gap-3">
               <button onClick={() => setModalType(null)} className="flex-1 py-4 text-zinc-500 font-bold text-[10px] uppercase tracking-widest hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors">Cancel</button>
-              <button onClick={() => { const val = parseInt(tempInputValue); if(!isNaN(val) && val > 0) { setCustomTime(val); setTimeLeft(val * 60); } setModalType(null); }} className={`flex-1 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>Save</button>
+              <button onClick={() => { const val = parseInt(tempInputValue); if(!isNaN(val) && val > 0) { setCustomTime(val); setTimeLeft(val * 60); } setModalType(null); }} className={`flex-1 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>Update</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL: EDIT COLOR */}
+      {/* MODAL: TOPIC COLOR */}
       {editingTopic && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-6">
           <div className={`border p-8 rounded-[2rem] w-full max-w-xs ${getThemeClasses('modal-bg')}`}>
-            <h3 className={`font-bold mb-6 uppercase text-[10px] tracking-widest text-center opacity-40 ${getThemeClasses('text-primary')}`}>Color: {editingTopic.name}</h3>
+            <h3 className={`font-bold mb-6 uppercase text-[10px] tracking-widest text-center opacity-40 ${getThemeClasses('text-primary')}`}>{editingTopic.name}</h3>
             <div className="grid grid-cols-4 gap-3 mb-8">
               {COLOR_OPTIONS.map(c => (
                 <button 
@@ -843,4 +808,3 @@ export default function App() {
     </div>
   );
 }
-</DOCUMENT>
