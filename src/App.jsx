@@ -1,21 +1,20 @@
+<DOCUMENT filename="App.jsx">
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Play, Pause, RotateCcw, 
-  Timer, Target, Tag, Settings, 
+  Timer, Tag, Settings, 
   X, TrendingUp, Volume2, 
   BarChart3, Activity, 
-  Award, Zap, ChevronRight,
-  BellRing, Trash2, Coffee, Brain,
   BookOpen, Download, Upload, FileJson,
-  Flame, BarChart2, ArrowUp, ArrowDown,
-  Sun, Moon, StopCircle // Adicionado ícones de tema
+  Flame, Coffee, Brain,
+  Sun, Moon, StopCircle
 } from 'lucide-react';
 
 const SOUND_LIBRARY = [
-  { id: 'zen', name: 'Taça Tibetana', type: 'sine', frequency: 440, duration: 2.0, detune: -5 },
-  { id: 'harp', name: 'Harpa Suave', type: 'sine', frequency: 880, duration: 1.5, detune: 10 },
-  { id: 'nature', name: 'Eco da Natureza', type: 'triangle', frequency: 330, duration: 2.5, detune: 2 },
-  { id: 'pulse', name: 'Pulso Relaxante', type: 'sine', frequency: 523.25, duration: 1.2, detune: 0 }
+  { id: 'zen', name: 'Tibetan Bowl', type: 'sine', frequency: 440, duration: 2.0, detune: -5 },
+  { id: 'harp', name: 'Gentle Harp', type: 'sine', frequency: 880, duration: 1.5, detune: 10 },
+  { id: 'nature', name: 'Nature Echo', type: 'triangle', frequency: 330, duration: 2.5, detune: 2 },
+  { id: 'pulse', name: 'Relaxing Pulse', type: 'sine', frequency: 523.25, duration: 1.2, detune: 0 }
 ];
 
 const COLOR_OPTIONS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#71717a', '#4ADE80', '#A855F7', '#F97316'];
@@ -24,19 +23,19 @@ const STORAGE_KEY = 'study_dashboard_data_v1';
 const THEME_KEY = 'study_theme_pref';
 
 export default function App() {
-  // --- ESTADOS GERAIS ---
+  // --- GENERAL STATES ---
   const [view, setView] = useState('focus');
   const [mode, setMode] = useState('focus');
-  // Carrega o tema salvo ou usa dark como padrão
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'dark');
   
-  // --- CONFIGURAÇÕES ---
+  // --- SETTINGS ---
   const [selectedSound, setSelectedSound] = useState(SOUND_LIBRARY[0]);
   const [alarmDuration, setAlarmDuration] = useState(5);
   const [infiniteAlarm, setInfiniteAlarm] = useState(false);
   const [dailyGoalHours, setDailyGoalHours] = useState(7);
+  const [hoursPeriod, setHoursPeriod] = useState('monthly'); // Weekly / Monthly toggle
 
-  // --- DADOS ---
+  // --- DATA ---
   const [topics, setTopics] = useState([]);
   const [history, setHistory] = useState([]);
   const [activeTopic, setActiveTopic] = useState(null);
@@ -54,13 +53,12 @@ export default function App() {
   const fileInputRef = useRef(null);
   const alarmPlayingRef = useRef(false);
 
-  // --- MODAIS / INPUTS ---
+  // --- MODALS / INPUTS ---
   const [modalType, setModalType] = useState(null); 
   const [editingTopic, setEditingTopic] = useState(null);
   const [tempInputValue, setTempInputValue] = useState("");
 
-  // --- HELPER DE ESTILOS (Grok Theme Logic) ---
-  // Função auxiliar para classes dinâmicas baseadas no tema
+  // --- THEME HELPER ---
   const getThemeClasses = (type) => {
     const isDark = theme === 'dark';
     switch (type) {
@@ -68,7 +66,6 @@ export default function App() {
       case 'text-primary': return isDark ? 'text-white' : 'text-zinc-900';
       case 'text-secondary': return isDark ? 'text-zinc-400' : 'text-zinc-500';
       case 'card': return isDark ? 'bg-zinc-900/40 border-zinc-900' : 'bg-zinc-50 border-zinc-200';
-      case 'card-hover': return isDark ? 'hover:bg-zinc-900/60' : 'hover:bg-zinc-100';
       case 'border': return isDark ? 'border-zinc-800' : 'border-zinc-200';
       case 'input': return isDark ? 'bg-black border-zinc-800 text-white' : 'bg-white border-zinc-300 text-zinc-900';
       case 'button-secondary': return isDark ? 'bg-zinc-900 text-zinc-400 hover:text-white' : 'bg-zinc-100 text-zinc-600 hover:text-black';
@@ -77,7 +74,7 @@ export default function App() {
     }
   };
 
-  // --- PERSISTÊNCIA: CARREGAR DADOS ---
+  // --- LOAD DATA ---
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -93,12 +90,12 @@ export default function App() {
           if (sound) setSelectedSound(sound);
         }
       } catch (e) {
-        console.error("Erro ao carregar dados:", e);
+        console.error("Error loading data:", e);
       }
     }
   }, []);
 
-  // --- PERSISTÊNCIA: SALVAR DADOS & TEMA ---
+  // --- SAVE DATA ---
   useEffect(() => {
     const dataToSave = {
       topics, history, alarmDuration, infiniteAlarm, dailyGoalHours,
@@ -111,7 +108,7 @@ export default function App() {
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
-  // --- RESET SEMANAL ---
+  // --- WEEKLY RESET ---
   useEffect(() => {
     const updateWeeklyMinutes = () => {
       const now = new Date();
@@ -136,7 +133,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [history]);
 
-  // --- EXPORTAR/IMPORTAR ---
+  // --- EXPORT / IMPORT ---
   const handleExport = () => {
     const dataToExport = {
       topics, history, alarmDuration, infiniteAlarm, dailyGoalHours,
@@ -171,7 +168,7 @@ export default function App() {
     event.target.value = ''; 
   };
 
-  // --- ÁUDIO E TIMER ---
+  // --- AUDIO & TIMER ---
   const initAudio = () => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -179,24 +176,24 @@ export default function App() {
     if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
   };
 
-useEffect(() => {
-  if (isRunning) {
-    timerRef.current = setInterval(() => {
-      if (mode === 'stopwatch') {
-        setTimeLeft(prev => prev + 1); // Modo cronômetro: aumenta o tempo
-      } else {
-        const now = Date.now();
-        const remaining = Math.max(0, Math.round((endTime - now) / 1000));
-        setTimeLeft(remaining);
-        if (remaining <= 0) {
-          clearInterval(timerRef.current);
-          handleComplete();
+  useEffect(() => {
+    if (isRunning) {
+      timerRef.current = setInterval(() => {
+        if (mode === 'stopwatch') {
+          setTimeLeft(prev => prev + 1);
+        } else {
+          const now = Date.now();
+          const remaining = Math.max(0, Math.round((endTime - now) / 1000));
+          setTimeLeft(remaining);
+          if (remaining <= 0) {
+            clearInterval(timerRef.current);
+            handleComplete();
+          }
         }
-      }
-    }, 1000);
-  }
-  return () => clearInterval(timerRef.current);
-}, [isRunning, endTime, mode]);
+      }, 1000);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [isRunning, endTime, mode]);
 
   const playSound = (soundConfig, duration) => {
     initAudio();
@@ -259,32 +256,34 @@ useEffect(() => {
     }
   };
 
-const handlePause = () => {
-  if ((mode === 'focus' || mode === 'stopwatch') && activeTopic) {
-    let spentMin = 0;
-    if (mode === 'focus') {
-      spentMin = customTime - Math.floor(timeLeft / 60);
-    } else {
-      spentMin = Math.floor(timeLeft / 60); // Pega o que correu no cronômetro
-    }
+  // FIXED: accurate elapsed time for pause (both focus and stopwatch)
+  const handlePause = () => {
+    if ((mode === 'focus' || mode === 'stopwatch') && activeTopic) {
+      let elapsedSeconds = 0;
+      if (mode === 'focus') {
+        elapsedSeconds = customTime * 60 - timeLeft;
+      } else {
+        elapsedSeconds = timeLeft;
+      }
 
-    if (spentMin > 0) {
-      const today = new Date().toISOString().split('T')[0];
-      const newTopics = topics.map(t => 
-        t.id === activeTopic.id ? { ...t, weeklyMinutes: (t.weeklyMinutes || 0) + spentMin, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
-      );
-      const newHistoryEntry = {
-        id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
-        date: today, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), color: activeTopic.color
-      };
-      setTopics(newTopics);
-      setHistory([newHistoryEntry, ...history]);
-      
-      // Se for cronômetro, resetamos os minutos mas mantemos os segundos "quebrados"
-      if (mode === 'stopwatch') setTimeLeft(timeLeft % 60);
+      const spentMin = Math.floor(elapsedSeconds / 60);
+
+      if (spentMin > 0) {
+        const today = new Date().toISOString().split('T')[0];
+        const newTopics = topics.map(t => 
+          t.id === activeTopic.id ? { ...t, weeklyMinutes: (t.weeklyMinutes || 0) + spentMin, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
+        );
+        const newHistoryEntry = {
+          id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
+          date: today, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), color: activeTopic.color
+        };
+        setTopics(newTopics);
+        setHistory([newHistoryEntry, ...history]);
+        
+        if (mode === 'stopwatch') setTimeLeft(timeLeft % 60);
+      }
     }
-  }
-};
+  };
 
   const resetAllData = () => {
     setTopics([]); setHistory([]); setActiveTopic(null); setTimeLeft(25 * 60); setIsRunning(false); setView('focus');
@@ -299,7 +298,7 @@ const handlePause = () => {
     return `${hDisplay}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // --- ESTATÍSTICAS ---
+  // --- STATS ---
   const statsByPeriod = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -330,7 +329,7 @@ const handlePause = () => {
 
   const currentStreak = useMemo(() => {
     let streak = 0;
-    const goalMins = 30; // Minimo 30 mins para streak contar
+    const goalMins = 30;
     for (let i = calendarData.length - 1; i >= 0; i--) {
       if (calendarData[i].minutes >= goalMins) streak++;
       else break;
@@ -338,32 +337,25 @@ const handlePause = () => {
     return streak;
   }, [calendarData]);
 
-  const monthlyData = useMemo(() => {
-    const months = [];
+  // Period data for Hours by Subject (Weekly / Monthly)
+  const topicPeriodData = useMemo(() => {
     const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
-      const monthStr = monthStart.toLocaleString('default', { month: 'short', year: '2-digit' });
-      const mins = history.filter(h => {
-        const hDate = new Date(h.date);
-        return hDate >= monthStart && hDate <= monthEnd;
-      }).reduce((acc, curr) => acc + curr.minutes, 0);
-      months.push({ month: monthStr, hours: (mins / 60).toFixed(1) });
+    let startOfPeriod;
+    if (hoursPeriod === 'monthly') {
+      startOfPeriod = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else {
+      startOfPeriod = new Date(now);
+      startOfPeriod.setDate(now.getDate() - now.getDay());
+      startOfPeriod.setHours(0, 0, 0, 0);
     }
-    return months;
-  }, [history]);
-  
-  const maxMonthlyHours = Math.max(...monthlyData.map(m => m.hours), 1);
-  const topicMonthlyData = useMemo(() => {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
     return topics.map(t => {
-      const monthlyMins = history.filter(h => h.topicId === t.id && new Date(h.date) >= startOfMonth).reduce((sum, h) => sum + h.minutes, 0);
-      return { ...t, monthlyMinutes: monthlyMins };
+      const periodMins = history.filter(h => h.topicId === t.id && new Date(h.date) >= startOfPeriod).reduce((sum, h) => sum + h.minutes, 0);
+      return { ...t, periodMinutes: periodMins };
     });
-  }, [topics, history]);
-  const maxTopicMonthlyMins = Math.max(...topicMonthlyData.map(t => t.monthlyMinutes || 0), 1);
+  }, [topics, history, hoursPeriod]);
+
+  const maxPeriodMins = Math.max(...topicPeriodData.map(t => t.periodMinutes || 0), 1);
 
   // --- RENDER ---
   return (
@@ -391,9 +383,8 @@ const handlePause = () => {
         <nav className="flex gap-4">
           {[
             { id: 'focus', icon: Timer, label: 'FOCUS' },
-            { id: 'labels', icon: Tag, label: 'LABELS' },
+            { id: 'labels', icon: Tag, label: 'TOPICS' },
             { id: 'dashboard', icon: BarChart3, label: 'DASHBOARD' },
-            { id: 'goals', icon: Target, label: 'GOALS' },
           ].map(item => (
             <button 
               key={item.id} 
@@ -423,7 +414,7 @@ const handlePause = () => {
             <div className="flex flex-col items-center justify-center pt-8">
               <div className={`flex flex-wrap justify-center gap-2 p-1.5 rounded-2xl mb-12 border transition-colors ${theme === 'dark' ? 'bg-zinc-900/40 border-zinc-800/50' : 'bg-zinc-100 border-zinc-200'}`}>
                 {topics.length === 0 ? (
-                  <span className="px-4 py-2 text-[10px] font-bold uppercase text-zinc-500 tracking-widest">Nenhum tópico criado</span>
+                  <span className="px-4 py-2 text-[10px] font-bold uppercase text-zinc-500 tracking-widest">No topics created</span>
                 ) : (
                   topics.map(t => (
                     <button 
@@ -442,7 +433,7 @@ const handlePause = () => {
                   className={`text-[10px] font-black uppercase tracking-[0.4em] mb-4 transition-colors`}
                   style={{ color: mode === 'break' ? '#10B981' : (activeTopic?.color || (theme === 'dark' ? '#52525b' : '#a1a1aa')) }}
                 >
-                  {mode === 'break' ? 'Tempo de Descanso' : (activeTopic?.name || 'Selecione um tópico')}
+                  {mode === 'break' ? 'Break Time' : (activeTopic?.name || 'Select a topic')}
                 </span>
                 
                 <button 
@@ -470,7 +461,7 @@ const handlePause = () => {
                       ))}
                     </div>
                     
-<div className="flex gap-4">
+                    <div className="flex gap-4">
                       <button 
                         onClick={() => { setMode('focus'); setCustomTime(25); setTimeLeft(25 * 60); }}
                         className={`flex items-center gap-2 px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] border transition-all ${mode === 'focus' ? (theme === 'dark' ? 'bg-white text-black border-white' : 'bg-black text-white border-black') : 'text-zinc-500 border-transparent hover:border-zinc-500'}`}
@@ -512,7 +503,18 @@ const handlePause = () => {
                 >
                   {isRunning ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
                 </button>
-                <button onClick={() => { setIsRunning(false); setTimeLeft(customTime * 60); setEndTime(null); }} className={`p-3 transition-colors ${theme === 'dark' ? 'text-zinc-800 hover:text-white' : 'text-zinc-300 hover:text-black'}`}>
+                <button 
+                  onClick={() => { 
+                    setIsRunning(false); 
+                    setEndTime(null);
+                    if (mode === 'stopwatch') {
+                      setTimeLeft(0);
+                    } else {
+                      setTimeLeft(customTime * 60);
+                    }
+                  }} 
+                  className={`p-3 transition-colors ${theme === 'dark' ? 'text-zinc-800 hover:text-white' : 'text-zinc-300 hover:text-black'}`}
+                >
                   <RotateCcw size={24} />
                 </button>
               </div>
@@ -521,13 +523,13 @@ const handlePause = () => {
                   onClick={stopAlarm}
                   className="mt-8 px-8 py-3 bg-red-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all"
                 >
-                  Parar Alarme
+                  Stop Alarm
                 </button>
               )}
             </div>
           )}
 
-          {/* VIEW: LABELS/TÓPICOS */}
+          {/* VIEW: TOPICS */}
           {view === 'labels' && (
              <div className="max-w-xl mx-auto">
                <div className="space-y-3 mb-8">
@@ -550,7 +552,7 @@ const handlePause = () => {
                <div className="flex gap-2">
                  <input 
                    type="text" 
-                   placeholder="NOVO TÓPICO..."
+                   placeholder="NEW TOPIC..."
                    className={`flex-1 border rounded-xl p-4 outline-none focus:border-zinc-500 text-[10px] font-bold tracking-widest uppercase ${getThemeClasses('input')}`}
                    onKeyDown={(e) => { 
                      if(e.key === 'Enter' && e.target.value) { 
@@ -565,10 +567,8 @@ const handlePause = () => {
           )}
 
           {/* VIEW: DASHBOARD */}
-{view === 'dashboard' && (
-            <div className="space-y-6"> {/* 3) Espaçamento reduzido de 12 para 6 */}
-              {/* 3) Removida a div vazia que causava espaço extra no topo */}
-
+          {view === 'dashboard' && (
+            <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className={`border p-6 rounded-[2rem] flex items-start gap-4 ${getThemeClasses('card')}`}>
                   <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
@@ -609,12 +609,10 @@ const handlePause = () => {
                 </div>
                 <div className="flex gap-2 justify-center flex-wrap">
                   {calendarData.map((day, i) => {
-                    // 2) Lógica corrigida para opacidade baseada na meta e cor roxa
                     const minutes = day.minutes;
-                    const goalMins = dailyGoalHours * 60; // Meta diária em minutos
+                    const goalMins = dailyGoalHours * 60;
                     const hasStudy = minutes > 0;
                     const reachedGoal = minutes >= goalMins;
-                    // Intensidade de 0.1 a 1.0 baseada no quão perto está da meta
                     const intensity = hasStudy ? Math.min(0.15 + (minutes / goalMins) * 0.85, 1) : 0;
 
                     return (
@@ -623,7 +621,6 @@ const handlePause = () => {
                         title={`${day.date}: ${(minutes / 60).toFixed(1)}h`}
                         className="w-4 h-16 rounded-full transition-all hover:scale-y-110"
                         style={{ 
-                          // Se bateu a meta: Roxo (#8B5CF6). Se não: Verde (#10B981) com opacidade variável
                           backgroundColor: reachedGoal 
                             ? '#8B5CF6' 
                             : (hasStudy ? `rgba(16, 185, 129, ${intensity})` : (theme === 'dark' ? '#27272a' : '#f4f4f5')),
@@ -636,98 +633,75 @@ const handlePause = () => {
                 </div>
               </div>
 
+              {/* HOURS BY SUBJECT - FULLY THEME-ADAPTIVE TOGGLE */}
               <div className={`border rounded-[2.5rem] p-10 ${getThemeClasses('card')}`}>
-                 <h3 className={`font-bold text-sm uppercase tracking-widest flex items-center gap-3 mb-12 ${getThemeClasses('text-primary')}`}>
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className={`font-bold text-sm uppercase tracking-widest flex items-center gap-3 ${getThemeClasses('text-primary')}`}>
                     <BarChart3 size={18} className="text-zinc-500" /> HOURS BY SUBJECT
-                 </h3>
-                 <div className="flex items-end justify-between h-48 gap-4 px-4">
+                  </h3>
+                  
+                  {/* IMPROVED TOGGLE - fully adaptive to light/dark theme */}
+                  <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-2xl p-1 border border-zinc-200 dark:border-zinc-800">
+                    <button 
+                      onClick={() => setHoursPeriod('weekly')}
+                      className={`px-6 py-2 text-[10px] font-bold uppercase tracking-widest rounded-[14px] transition-all ${
+                        hoursPeriod === 'weekly'
+                          ? theme === 'dark'
+                            ? 'bg-white text-black shadow-sm'
+                            : 'bg-black text-white shadow-sm'
+                          : theme === 'dark'
+                            ? 'text-zinc-400 hover:text-white'
+                            : 'text-zinc-500 hover:text-zinc-800'
+                      }`}
+                    >
+                      Weekly
+                    </button>
+                    <button 
+                      onClick={() => setHoursPeriod('monthly')}
+                      className={`px-6 py-2 text-[10px] font-bold uppercase tracking-widest rounded-[14px] transition-all ${
+                        hoursPeriod === 'monthly'
+                          ? theme === 'dark'
+                            ? 'bg-white text-black shadow-sm'
+                            : 'bg-black text-white shadow-sm'
+                          : theme === 'dark'
+                            ? 'text-zinc-400 hover:text-white'
+                            : 'text-zinc-500 hover:text-zinc-800'
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-end justify-between h-48 gap-4 px-4">
                   {topics.length === 0 ? (
-                    <div className="w-full text-center text-zinc-400 uppercase font-black text-[10px] tracking-[0.5em]">Sem dados</div>
+                    <div className="w-full text-center text-zinc-400 uppercase font-black text-[10px] tracking-[0.5em]">No data</div>
                   ) : (
-                    topicMonthlyData.map(t => {
-                      // 1) Correção do gráfico de barras com fundo e tooltip
-                      const heightPercent = maxTopicMonthlyMins > 0 ? ((t.monthlyMinutes||0)/maxTopicMonthlyMins)*100 : 0;
-                      
+                    topicPeriodData.map(t => {
+                      const heightPercent = maxPeriodMins > 0 ? ((t.periodMinutes||0)/maxPeriodMins)*100 : 0;
                       return (
                         <div key={t.id} className="flex-1 flex flex-col items-center group h-full justify-end">
-                           <div className="relative w-full flex justify-center h-full items-end">
-                              {/* Fundo da barra (trilho) para melhor visualização */}
-                              <div className={`absolute bottom-0 w-6 h-full rounded-full opacity-20 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-                              
-                              {/* A Barra de Progresso */}
-                              <div 
-                                className="relative w-6 rounded-full transition-all duration-1000 group-hover:opacity-80 z-10" 
-                                style={{ 
-                                  height: `${Math.max(heightPercent, t.monthlyMinutes > 0 ? 5 : 0)}%`, // Mínimo de 5% se tiver estudado algo, para não sumir
-                                  backgroundColor: t.color 
-                                }} 
-                              >
-                                {/* Tooltip mostrando as horas ao passar o mouse */}
-                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20">
-                                  {((t.monthlyMinutes||0)/60).toFixed(1)}h
-                                </div>
+                          <div className="relative w-full flex justify-center h-full items-end">
+                            <div className={`absolute bottom-0 w-6 h-full rounded-full opacity-20 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
+                            <div 
+                              className="relative w-6 rounded-full transition-all duration-1000 group-hover:opacity-80 z-10" 
+                              style={{ 
+                                height: `${Math.max(heightPercent, t.periodMinutes > 0 ? 5 : 0)}%`,
+                                backgroundColor: t.color 
+                              }} 
+                            >
+                              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20">
+                                {((t.periodMinutes||0)/60).toFixed(1)}h
                               </div>
-                           </div>
-                           <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-500 truncate w-full text-center">{t.name}</span>
+                            </div>
+                          </div>
+                          <span className="mt-4 text-[8px] font-bold uppercase tracking-tighter text-zinc-500 truncate w-full text-center">{t.name}</span>
                         </div>
                       );
                     })
                   )}
-                 </div>
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* VIEW: GOALS */}
-          {view === 'goals' && (
-            <div className="max-w-2xl mx-auto space-y-6">
-              <h2 className={`text-2xl font-bold uppercase text-xs tracking-widest mb-8 ${getThemeClasses('text-primary')}`}>WEEKLY GOALS</h2>
-              {topics.map(topic => {
-                const hoursDone = (topic.weeklyMinutes || 0) / 60;
-                const progress = topic.hasGoal ? (hoursDone / topic.goalHours) * 100 : 0;
-                return (
-                  <div key={topic.id} className={`border rounded-3xl p-8 relative overflow-hidden group ${getThemeClasses('card')}`}>
-                    {!topic.hasGoal && <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white/10 backdrop-blur-sm">
-                      <button onClick={() => setTopics(topics.map(t => t.id === topic.id ? {...t, hasGoal: true} : t))} className="bg-black text-white px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-xl">Ativar Meta</button>
-                    </div>}
-                    
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="flex flex-col gap-1">
-                        <span className={`font-bold text-lg tracking-tight uppercase ${getThemeClasses('text-primary')}`}>{topic.name}</span>
-                        {topic.hasGoal ? (
-                          <div className="flex items-center gap-2">
-                            <input 
-                              type="number" value={topic.goalHours}
-                              onChange={(e) => setTopics(topics.map(t => t.id === topic.id ? {...t, goalHours: parseInt(e.target.value) || 0} : t))}
-                              className={`border rounded px-2 py-1 text-[11px] w-14 outline-none focus:border-zinc-500 ${getThemeClasses('input')}`}
-                            />
-                            <span className="text-zinc-500 text-[9px] font-bold uppercase">Meta de Horas</span>
-                          </div>
-                        ) : <span className="text-zinc-500 text-[9px] font-bold uppercase">Sem Meta</span>}
-                      </div>
-                      <div className="text-right flex items-start gap-2">
-                        {topic.hasGoal && (
-                          <button 
-                            onClick={() => setTopics(topics.map(t => t.id === topic.id ? {...t, hasGoal: false} : t))}
-                            className="text-zinc-400 hover:text-red-500 transition-colors"
-                          >
-                            <X size={18} />
-                          </button>
-                        )}
-                        <div>
-                          <span className="text-zinc-500 text-[10px] font-bold block mb-1 uppercase tracking-tighter">{hoursDone.toFixed(1)}H FEITO</span>
-                          {topic.hasGoal && <span className={`font-bold text-3xl tracking-tighter tabular-nums ${getThemeClasses('text-primary')}`}>{Math.min(progress, 100).toFixed(0)}%</span>}
-                        </div>
-                      </div>
-                    </div>
-                    {topic.hasGoal && (
-                      <div className={`w-full h-2 rounded-full overflow-hidden border ${theme === 'dark' ? 'bg-black border-zinc-900' : 'bg-zinc-100 border-zinc-200'}`}>
-                        <div className="h-full transition-all duration-1000 ease-out" style={{ width: `${Math.min(progress, 100)}%`, backgroundColor: topic.color }} />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
             </div>
           )}
 
@@ -736,7 +710,7 @@ const handlePause = () => {
             <div className="max-w-md mx-auto space-y-12">
               <section>
                 <h2 className={`font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2 ${getThemeClasses('text-primary')}`}>
-                  <Sun size={16} /> Aparência
+                  <Sun size={16} /> Appearance
                 </h2>
                 <div className={`p-2 rounded-2xl border grid grid-cols-2 gap-2 ${getThemeClasses('card')}`}>
                    <button 
@@ -756,14 +730,14 @@ const handlePause = () => {
 
               <section>
                 <h2 className={`font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2 ${getThemeClasses('text-primary')}`}>
-                  <FileJson size={16} /> Backup de Dados
+                  <FileJson size={16} /> Data Backup
                 </h2>
                 <div className="grid grid-cols-2 gap-3">
                   <button onClick={handleExport} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border transition-all ${getThemeClasses('button-secondary')} ${getThemeClasses('border')}`}>
-                    <Download size={20} /> <span className="text-[10px] font-bold uppercase tracking-widest">Exportar</span>
+                    <Download size={20} /> <span className="text-[10px] font-bold uppercase tracking-widest">Export</span>
                   </button>
                   <button onClick={() => fileInputRef.current.click()} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border transition-all ${getThemeClasses('button-secondary')} ${getThemeClasses('border')}`}>
-                    <Upload size={20} /> <span className="text-[10px] font-bold uppercase tracking-widest">Importar</span>
+                    <Upload size={20} /> <span className="text-[10px] font-bold uppercase tracking-widest">Import</span>
                     <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImport} />
                   </button>
                 </div>
@@ -771,7 +745,7 @@ const handlePause = () => {
 
               <section>
                 <h2 className={`font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2 ${getThemeClasses('text-primary')}`}>
-                  <Volume2 size={16} /> Som do Alerta
+                  <Volume2 size={16} /> Alert Sound
                 </h2>
                 <div className="grid gap-2">
                   {SOUND_LIBRARY.map(sound => (
@@ -788,19 +762,19 @@ const handlePause = () => {
 
               <section>
                 <h2 className={`font-bold uppercase text-[10px] tracking-widest mb-6 flex items-center gap-2 ${getThemeClasses('text-primary')}`}>
-                  <BellRing size={16} /> Configurações Gerais
+                  <BellRing size={16} /> General Settings
                 </h2>
                 <div className={`p-6 rounded-2xl border flex items-center justify-between mb-4 ${getThemeClasses('card')}`}>
                   <div className="flex flex-col">
-                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Tempo do Alarme</span>
-                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Segundos</span>
+                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Alarm Duration</span>
+                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Seconds</span>
                   </div>
                   <input type="number" value={alarmDuration} onChange={(e) => setAlarmDuration(Math.max(1, parseInt(e.target.value)||1))} className={`border rounded-xl px-4 py-2 w-20 text-center font-bold outline-none ${getThemeClasses('input')}`} />
                 </div>
                 <div className={`p-6 rounded-2xl border flex items-center justify-between mb-4 ${getThemeClasses('card')}`}>
                   <div className="flex flex-col">
-                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Alarme Infinito</span>
-                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Tocar até parar manualmente</span>
+                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Infinite Alarm</span>
+                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Play until manually stopped</span>
                   </div>
                   <button 
                     onClick={() => setInfiniteAlarm(!infiniteAlarm)}
@@ -811,8 +785,8 @@ const handlePause = () => {
                 </div>
                 <div className={`p-6 rounded-2xl border flex items-center justify-between ${getThemeClasses('card')}`}>
                   <div className="flex flex-col">
-                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Meta Diária</span>
-                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Horas</span>
+                    <span className={`text-xs font-bold uppercase tracking-widest ${getThemeClasses('text-primary')}`}>Daily Goal</span>
+                    <span className="text-zinc-500 text-[9px] font-bold uppercase">Hours</span>
                   </div>
                   <input type="number" value={dailyGoalHours} onChange={(e) => setDailyGoalHours(Math.max(0, parseInt(e.target.value)||0))} className={`border rounded-xl px-4 py-2 w-20 text-center font-bold outline-none ${getThemeClasses('input')}`} />
                 </div>
@@ -820,10 +794,10 @@ const handlePause = () => {
 
               <section className={`pt-12 border-t ${getThemeClasses('border')}`}>
                 <button 
-                  onClick={() => { if(confirm("Apagar tudo?")) resetAllData(); }}
+                  onClick={() => { if(confirm("Delete all data?")) resetAllData(); }}
                   className="w-full flex items-center justify-center gap-3 p-5 rounded-2xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors font-bold text-[10px] uppercase tracking-widest"
                 >
-                  <Trash2 size={16} /> Resetar App
+                  <Trash2 size={16} /> Reset App
                 </button>
               </section>
             </div>
@@ -831,28 +805,28 @@ const handlePause = () => {
         </div>
       </main>
 
-      {/* MODAL TEMPO */}
+      {/* MODAL: EDIT TIME */}
       {modalType === 'editTime' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-6">
           <div className={`border p-8 rounded-[2rem] w-full max-w-xs text-center ${getThemeClasses('modal-bg')}`}>
-            <h3 className={`font-bold mb-6 uppercase text-[10px] tracking-widest opacity-40 ${getThemeClasses('text-primary')}`}>Definir Minutos</h3>
+            <h3 className={`font-bold mb-6 uppercase text-[10px] tracking-widest opacity-40 ${getThemeClasses('text-primary')}`}>Set Minutes</h3>
             <input 
               autoFocus type="number" value={tempInputValue} onChange={(e) => setTempInputValue(e.target.value)}
               className={`w-full border rounded-2xl p-6 mb-6 text-center outline-none font-bold text-5xl tracking-tighter ${getThemeClasses('input')}`}
             />
             <div className="flex gap-3">
-              <button onClick={() => setModalType(null)} className="flex-1 py-4 text-zinc-500 font-bold text-[10px] uppercase tracking-widest hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors">Sair</button>
-              <button onClick={() => { const val = parseInt(tempInputValue); if(!isNaN(val) && val > 0) { setCustomTime(val); setTimeLeft(val * 60); } setModalType(null); }} className={`flex-1 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>Salvar</button>
+              <button onClick={() => setModalType(null)} className="flex-1 py-4 text-zinc-500 font-bold text-[10px] uppercase tracking-widest hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors">Cancel</button>
+              <button onClick={() => { const val = parseInt(tempInputValue); if(!isNaN(val) && val > 0) { setCustomTime(val); setTimeLeft(val * 60); } setModalType(null); }} className={`flex-1 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>Save</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL COR */}
+      {/* MODAL: EDIT COLOR */}
       {editingTopic && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-6">
           <div className={`border p-8 rounded-[2rem] w-full max-w-xs ${getThemeClasses('modal-bg')}`}>
-            <h3 className={`font-bold mb-6 uppercase text-[10px] tracking-widest text-center opacity-40 ${getThemeClasses('text-primary')}`}>Cor: {editingTopic.name}</h3>
+            <h3 className={`font-bold mb-6 uppercase text-[10px] tracking-widest text-center opacity-40 ${getThemeClasses('text-primary')}`}>Color: {editingTopic.name}</h3>
             <div className="grid grid-cols-4 gap-3 mb-8">
               {COLOR_OPTIONS.map(c => (
                 <button 
@@ -862,10 +836,11 @@ const handlePause = () => {
                 />
               ))}
             </div>
-            <button onClick={() => setEditingTopic(null)} className="w-full py-4 text-zinc-500 font-bold text-[10px] uppercase tracking-widest">Fechar</button>
+            <button onClick={() => setEditingTopic(null)} className="w-full py-4 text-zinc-500 font-bold text-[10px] uppercase tracking-widest">Close</button>
           </div>
         </div>
       )}
     </div>
   );
 }
+</DOCUMENT>
