@@ -45,14 +45,12 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
-  const [focusStreak, setFocusStreak] = useState(0); // sessões de foco concluídas em sequência (ciclo pomodoro)
 
   // --- REFS ---
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
   const fileInputRef = useRef(null);
   const alarmPlayingRef = useRef(false);
-  const sessionLoggedSecondsRef = useRef(0); // quanto do tempo da sessão atual já foi contabilizado
 
   // --- MODAIS ---
   const [modalType, setModalType] = useState(null); 
@@ -81,11 +79,11 @@ export default function App() {
     if (savedData) {
       try {
         const data = JSON.parse(savedData);
-        if (Array.isArray(data.topics)) setTopics(data.topics);
-        if (Array.isArray(data.history)) setHistory(data.history);
-        if (typeof data.alarmDuration === 'number') setAlarmDuration(data.alarmDuration);
-        if (typeof data.infiniteAlarm === 'boolean') setInfiniteAlarm(data.infiniteAlarm);
-        if (typeof data.dailyGoalHours === 'number') setDailyGoalHours(data.dailyGoalHours);
+        if (data.topics) setTopics(data.topics);
+        if (data.history) setHistory(data.history);
+        if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
+        if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
+        if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
         if (data.selectedSoundId) {
           const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
           if (sound) setSelectedSound(sound);
@@ -102,49 +100,12 @@ export default function App() {
       topics, history, alarmDuration, infiniteAlarm, dailyGoalHours,
       selectedSoundId: selectedSound.id
     };
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-    } catch (e) {
-      console.error("Erro ao salvar dados:", e);
-    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
   }, [topics, history, alarmDuration, infiniteAlarm, dailyGoalHours, selectedSound]);
 
   useEffect(() => {
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
-
-  // --- TÍTULO DINÂMICO DA ABA (mostra a contagem regressiva mesmo fora da aba) ---
-  useEffect(() => {
-    if (isRunning) {
-      const label = mode === 'break' ? 'Descanso' : (activeTopic?.name || 'Foco');
-      document.title = `${formatTime(timeLeft)} · ${label} — Productive`;
-    } else {
-      document.title = 'Productive';
-    }
-  }, [timeLeft, isRunning, mode, activeTopic]);
-
-  // --- ATALHOS DE TECLADO: Espaço (play/pause), Esc (fechar modais) ---
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (modalType || editingTopic) {
-        if (e.code === 'Escape') { setModalType(null); setEditingTopic(null); }
-        return;
-      }
-      if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
-        e.preventDefault();
-        if (mode === 'focus' && !activeTopic) return;
-        initAudio();
-        if (isRunning) {
-          handlePause();
-        } else {
-          setEndTime(Date.now() + timeLeft * 1000);
-          setIsRunning(true);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isRunning, mode, activeTopic, timeLeft, modalType, editingTopic]);
 
   // --- EXPORTAR / IMPORTAR ---
   const handleExport = () => {
@@ -170,25 +131,12 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target.result);
-        if (!data || typeof data !== 'object') throw new Error('Formato inválido');
-        if (!window.confirm('Isso substituirá todos os seus dados atuais por este backup. Deseja continuar?')) {
-          event.target.value = '';
-          return;
-        }
-        if (Array.isArray(data.topics)) setTopics(data.topics);
-        if (Array.isArray(data.history)) setHistory(data.history);
-        if (typeof data.alarmDuration === 'number') setAlarmDuration(data.alarmDuration);
-        if (typeof data.infiniteAlarm === 'boolean') setInfiniteAlarm(data.infiniteAlarm);
-        if (typeof data.dailyGoalHours === 'number') setDailyGoalHours(data.dailyGoalHours);
-        if (data.selectedSoundId) {
-          const sound = SOUND_LIBRARY.find(s => s.id === data.selectedSoundId);
-          if (sound) setSelectedSound(sound);
-        }
-        setActiveTopic(null);
-      } catch (err) {
-        console.error(err);
-        alert('Não foi possível importar o arquivo. Verifique se é um backup válido (.json).');
-      }
+        if (data.topics) setTopics(data.topics);
+        if (data.history) setHistory(data.history);
+        if (data.alarmDuration) setAlarmDuration(data.alarmDuration);
+        if (data.infiniteAlarm) setInfiniteAlarm(data.infiniteAlarm);
+        if (data.dailyGoalHours) setDailyGoalHours(data.dailyGoalHours);
+      } catch (err) { console.error(err); }
     };
     reader.readAsText(file);
     event.target.value = ''; 
@@ -200,18 +148,6 @@ export default function App() {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
     if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
-    }
-  };
-
-  const notifySessionEnd = (finishedMode) => {
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-    try {
-      const title = finishedMode === 'focus' ? 'Sessão de foco concluída! 🎉' : 'Descanso terminado';
-      const body = finishedMode === 'focus' ? 'Hora de uma pausa bem merecida.' : 'Pronto para outra rodada de foco?';
-      new Notification(title, { body });
-    } catch (e) { /* navegador sem suporte pleno a Notification */ }
   };
 
   useEffect(() => {
@@ -269,37 +205,25 @@ export default function App() {
     initAudio();
     setIsAlarmPlaying(true);
     playSound(selectedSound, infiniteAlarm ? 'infinite' : alarmDuration);
-    notifySessionEnd(mode);
+    
+    if (mode === 'focus' && activeTopic) {
+      const spentMin = customTime;
+      const today = new Date().toISOString().split('T')[0];
+      
+      const newTopics = topics.map(t => 
+        t.id === activeTopic.id ? { ...t, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
+      );
+      const newHistoryEntry = {
+        id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
+        date: today, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), color: activeTopic.color
+      };
 
-    if (mode === 'focus') {
-      if (activeTopic) {
-        // Contabiliza apenas o tempo ainda não registrado (evita duplicar minutos já salvos em pausas)
-        const totalElapsedSec = customTime * 60;
-        const deltaMin = Math.floor((totalElapsedSec - sessionLoggedSecondsRef.current) / 60);
-        if (deltaMin > 0) {
-          const today = new Date().toISOString().split('T')[0];
-          const newTopics = topics.map(t =>
-            t.id === activeTopic.id ? { ...t, totalMinutes: (t.totalMinutes || 0) + deltaMin } : t
-          );
-          const newHistoryEntry = {
-            id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: deltaMin,
-            date: today, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), color: activeTopic.color
-          };
-          setTopics(newTopics);
-          setHistory([newHistoryEntry, ...history]);
-        }
-      }
-      sessionLoggedSecondsRef.current = 0;
-
-      // Técnica pomodoro clássica: a cada 4 sessões de foco, pausa longa
-      const nextStreak = focusStreak + 1;
-      setFocusStreak(nextStreak);
-      const isLongBreak = nextStreak % 4 === 0;
+      setTopics(newTopics);
+      setHistory([newHistoryEntry, ...history]);
       setMode('break');
-      setCustomTime(isLongBreak ? 15 : 5);
-      setTimeLeft((isLongBreak ? 15 : 5) * 60);
+      setCustomTime(5);
+      setTimeLeft(5 * 60);
     } else if (mode === 'break') {
-      sessionLoggedSecondsRef.current = 0;
       setMode('focus');
       setCustomTime(25);
       setTimeLeft(25 * 60);
@@ -309,31 +233,34 @@ export default function App() {
   const handlePause = () => {
     setIsRunning(false);
     if ((mode === 'focus' || mode === 'stopwatch') && activeTopic) {
-      // Tempo total decorrido desde o início da sessão (não desde a última pausa)
-      const totalElapsedSec = mode === 'focus' ? (customTime * 60 - timeLeft) : timeLeft;
-      // Só contabiliza o que ainda não havia sido salvo em pausas anteriores
-      const deltaMin = Math.floor((totalElapsedSec - sessionLoggedSecondsRef.current) / 60);
+      let elapsedSeconds = 0;
+      if (mode === 'focus') {
+        elapsedSeconds = customTime * 60 - timeLeft;
+      } else {
+        elapsedSeconds = timeLeft;
+      }
 
-      if (deltaMin > 0) {
+      const spentMin = Math.floor(elapsedSeconds / 60);
+
+      if (spentMin > 0) {
         const today = new Date().toISOString().split('T')[0];
         const newTopics = topics.map(t => 
-          t.id === activeTopic.id ? { ...t, totalMinutes: (t.totalMinutes || 0) + deltaMin } : t
+          t.id === activeTopic.id ? { ...t, totalMinutes: (t.totalMinutes || 0) + spentMin } : t
         );
         const newHistoryEntry = {
-          id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: deltaMin,
+          id: Date.now(), topicId: activeTopic.id, topicName: activeTopic.name, minutes: spentMin,
           date: today, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), color: activeTopic.color
         };
         setTopics(newTopics);
         setHistory([newHistoryEntry, ...history]);
+        
+        if (mode === 'stopwatch') setTimeLeft(timeLeft % 60);
       }
-      sessionLoggedSecondsRef.current = totalElapsedSec;
     }
   };
 
   const resetAllData = () => {
     setTopics([]); setHistory([]); setActiveTopic(null); setTimeLeft(25 * 60); setIsRunning(false); setView('focus');
-    setFocusStreak(0);
-    sessionLoggedSecondsRef.current = 0;
     localStorage.removeItem(STORAGE_KEY);
   };
 
@@ -376,19 +303,13 @@ export default function App() {
 
   const currentStreak = useMemo(() => {
     let streak = 0;
-    const goalMins = Math.max(dailyGoalHours, 0) * 60;
-    if (goalMins <= 0) return 0;
+    const goalMins = 30;
     for (let i = calendarData.length - 1; i >= 0; i--) {
       if (calendarData[i].minutes >= goalMins) streak++;
       else break;
     }
     return streak;
-  }, [calendarData, dailyGoalHours]);
-
-  // Progresso da sessão atual (0 a 1), usado na barra de progresso visual
-  const timerProgress = (mode === 'stopwatch' || customTime <= 0)
-    ? 0
-    : Math.min(1, Math.max(0, (customTime * 60 - timeLeft) / (customTime * 60)));
+  }, [calendarData]);
 
   const topicPeriodData = useMemo(() => {
     const now = new Date();
@@ -470,7 +391,7 @@ export default function App() {
                   topics.map(t => (
                     <button 
                       key={t.id} 
-                      onClick={() => { if (!isRunning) { setActiveTopic(t); sessionLoggedSecondsRef.current = 0; } }} 
+                      onClick={() => !isRunning && setActiveTopic(t)} 
                       className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeTopic?.id === t.id ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : 'text-zinc-500 hover:text-zinc-800'}`}
                     >
                       {t.name}
@@ -494,40 +415,13 @@ export default function App() {
                   {formatTime(timeLeft)}
                 </button>
 
-                {mode !== 'stopwatch' && (
-                  <div className={`w-full max-w-xs h-1.5 rounded-full mt-6 overflow-hidden ${theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
-                    <div
-                      className="h-full rounded-full transition-all duration-1000 ease-linear"
-                      style={{
-                        width: `${timerProgress * 100}%`,
-                        backgroundColor: mode === 'break' ? '#10B981' : (activeTopic?.color || '#71717a')
-                      }}
-                    />
-                  </div>
-                )}
-
-                {mode === 'focus' && (
-                  <div className="flex items-center gap-2 mt-5" title={`${focusStreak % 4}/4 sessões neste ciclo`}>
-                    {[0, 1, 2, 3].map(i => (
-                      <div
-                        key={i}
-                        className="w-1.5 h-1.5 rounded-full transition-all"
-                        style={{
-                          backgroundColor: activeTopic?.color || '#71717a',
-                          opacity: i < (focusStreak % 4) ? 1 : 0.2
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-
                 {!isRunning && (
                   <div className="space-y-4 flex flex-col items-center mt-8">
                     <div className="flex gap-3">
                       {[25, 45, 60, 90, 120].map(m => (
                         <button 
                           key={m} 
-                          onClick={() => { setCustomTime(m); setTimeLeft(m * 60); sessionLoggedSecondsRef.current = 0; }} 
+                          onClick={() => { setCustomTime(m); setTimeLeft(m * 60); }} 
                           className={`text-[9px] font-black uppercase tracking-widest py-2 px-4 rounded-lg border transition-all ${
                             customTime === m 
                               ? (theme === 'dark' ? 'text-white border-zinc-500 bg-zinc-900' : 'text-white border-black bg-black')
@@ -541,21 +435,21 @@ export default function App() {
                     
                     <div className="flex gap-4">
                       <button 
-                        onClick={() => { setMode('focus'); setCustomTime(25); setTimeLeft(25 * 60); sessionLoggedSecondsRef.current = 0; }}
+                        onClick={() => { setMode('focus'); setCustomTime(25); setTimeLeft(25 * 60); }}
                         className={`flex items-center gap-2 px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] border transition-all ${mode === 'focus' ? (theme === 'dark' ? 'bg-white text-black border-white' : 'bg-black text-white border-black') : 'text-zinc-500 border-transparent hover:border-zinc-500'}`}
                       >
                         <Brain size={14} /> Focus
                       </button>
 
                       <button 
-                        onClick={() => { setMode('stopwatch'); setTimeLeft(0); sessionLoggedSecondsRef.current = 0; }} 
+                        onClick={() => { setMode('stopwatch'); setTimeLeft(0); }} 
                         className={`flex items-center gap-2 px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] border transition-all ${mode === 'stopwatch' ? 'bg-blue-500 text-white border-blue-500' : 'text-zinc-500 border-transparent hover:border-zinc-500'}`}
                       >
                         <StopCircle size={14} /> Stopwatch
                       </button>
 
                       <button 
-                        onClick={() => { setMode('break'); setCustomTime(5); setTimeLeft(5 * 60); sessionLoggedSecondsRef.current = 0; }}
+                        onClick={() => { setMode('break'); setCustomTime(5); setTimeLeft(5 * 60); }}
                         className={`flex items-center gap-2 px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] border transition-all ${mode === 'break' ? 'bg-emerald-500 text-white border-emerald-500' : 'text-zinc-500 border-transparent hover:border-zinc-500'}`}
                       >
                         <Coffee size={14} /> Break
@@ -595,7 +489,6 @@ export default function App() {
                     } else {
                       setTimeLeft(customTime * 60);
                     }
-                    sessionLoggedSecondsRef.current = 0;
                   }} 
                   className={`p-3 transition-colors ${theme === 'dark' ? 'text-zinc-800 hover:text-white' : 'text-zinc-300 hover:text-black'}`}
                 >
@@ -625,18 +518,9 @@ export default function App() {
                          className="w-5 h-5 rounded-full ring-2 ring-offset-2 transition-transform hover:scale-110 ring-zinc-300 ring-offset-white dark:ring-zinc-800 dark:ring-offset-black" 
                          style={{ backgroundColor: t.color }} 
                        />
-                       <div className="flex flex-col">
-                         <span className={`text-sm font-bold uppercase tracking-wide ${getThemeClasses('text-primary')}`}>{t.name}</span>
-                         <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">{((t.totalMinutes || 0) / 60).toFixed(1)}h registradas</span>
-                       </div>
+                       <span className={`text-sm font-bold uppercase tracking-wide ${getThemeClasses('text-primary')}`}>{t.name}</span>
                      </div>
-                     <button
-                       onClick={() => {
-                         setTopics(topics.filter(x => x.id !== t.id));
-                         if (activeTopic?.id === t.id) setActiveTopic(null);
-                       }}
-                       className="text-zinc-400 hover:text-red-500 transition-colors"
-                     >
+                     <button onClick={() => setTopics(topics.filter(x => x.id !== t.id))} className="text-zinc-400 hover:text-red-500 transition-colors">
                        <X size={18} />
                      </button>
                    </div>
@@ -648,13 +532,10 @@ export default function App() {
                    placeholder="NEW TOPIC..."
                    className={`flex-1 border rounded-xl p-4 outline-none focus:border-zinc-500 text-[10px] font-bold tracking-widest uppercase ${getThemeClasses('input')}`}
                    onKeyDown={(e) => { 
-                     if(e.key === 'Enter') {
-                       const name = e.target.value.trim();
-                       if (name) {
-                         const updated = [...topics, { id: Date.now(), name, color: COLOR_OPTIONS[Math.floor(Math.random()*COLOR_OPTIONS.length)], totalMinutes: 0 }];
-                         setTopics(updated); 
-                         e.target.value = '';
-                       }
+                     if(e.key === 'Enter' && e.target.value) { 
+                       const updated = [...topics, { id: Date.now(), name: e.target.value, color: COLOR_OPTIONS[Math.floor(Math.random()*COLOR_OPTIONS.length)], totalMinutes: 0 }];
+                       setTopics(updated); 
+                       e.target.value = '';
                      }
                    }}
                  />
@@ -706,10 +587,10 @@ export default function App() {
                 <div className="flex gap-2 justify-center flex-wrap">
                   {calendarData.map((day, i) => {
                     const minutes = day.minutes;
-                    const goalMins = Math.max(dailyGoalHours, 0) * 60;
+                    const goalMins = dailyGoalHours * 60;
                     const hasStudy = minutes > 0;
-                    const reachedGoal = goalMins > 0 && minutes >= goalMins;
-                    const intensity = hasStudy ? Math.min(0.15 + (goalMins > 0 ? (minutes / goalMins) : 1) * 0.85, 1) : 0;
+                    const reachedGoal = minutes >= goalMins;
+                    const intensity = hasStudy ? Math.min(0.15 + (minutes / goalMins) * 0.85, 1) : 0;
 
                     return (
                       <div 
@@ -900,7 +781,7 @@ export default function App() {
             />
             <div className="flex gap-3">
               <button onClick={() => setModalType(null)} className="flex-1 py-4 text-zinc-500 font-bold text-[10px] uppercase tracking-widest hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors">Cancel</button>
-              <button onClick={() => { const val = parseInt(tempInputValue); if(!isNaN(val) && val > 0) { setCustomTime(val); setTimeLeft(val * 60); sessionLoggedSecondsRef.current = 0; } setModalType(null); }} className={`flex-1 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>Update</button>
+              <button onClick={() => { const val = parseInt(tempInputValue); if(!isNaN(val) && val > 0) { setCustomTime(val); setTimeLeft(val * 60); } setModalType(null); }} className={`flex-1 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>Update</button>
             </div>
           </div>
         </div>
